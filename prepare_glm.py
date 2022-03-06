@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from utils import Mappings
 
@@ -65,19 +66,56 @@ def group_trials_by_stimulus(study, run, sub, trials_to_group, sub_stimulus):
     from (trialtiming/) which will then be convolved by HDF
     """
     fpath = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{study}_run{run}.txt'
+    print(f'[Check] fpath = {fpath}')
+    
     trials = pd.read_csv(fpath, header=None).to_numpy()
     
     for trial in trials:
         trial = trial[0].split('\t')
-        stimulus = trial[3:6]
         
-        if stimulus == sub_stimulus:
+        if trial[3:6] == sub_stimulus:
             trials_to_group.append(trial[0])
     
     print(f'[Check] trials_to_group = {trials_to_group}')
     return trials_to_group
+
+
+def group_stimulus_onset_by_trials(study, run, sub, stimulus_onset, trials_to_group):
+    """
+    After `group_trials_by_stimulus`, we have all trials of a run where 
+    the target stimulus is presented. Given these trials, we can look 
+    for their corresponding stimulus onset from 'trialtiming/'
+    """
+    fpath = f'Mack-Data/trialtiming/{sub}_study{study}_run{run}.txt'
+    trials = pd.read_csv(fpath, header=None).to_numpy()
     
+    for trial in trials:
+        trial = trial[0].split('\t')
+        
+        if trial[1] in trials_to_group:
+            stimulus_onset.append(trial[4])
     
+    print(f'[Check] stimulus_onset = {stimulus_onset}')
+    return stimulus_onset
+
+
+def create_design_mtx(stimulus_onset):
+    """
+    Given stimulus onset info of a run & sub & study, create
+    one-hot columns into design matrix before convolved by 
+    HRF.
+    """
+    # TODO: column length 194s * 2?
+    regressors = np.zeros((194 * 2, len(stimulus_onset))) 
+    for i, time in enumerate(stimulus_onset):
+        print(time, i)
+        regressors[int(time), i] = 1
+    
+    print(regressors[:, 2])
+    print(regressors[:, 3])
+    
+
+
 def execute():
     # stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
     stimuli = ['101']
@@ -89,6 +127,7 @@ def execute():
             subs.append(f'0{i}')
         else:
             subs.append(f'{i}')
+            
     runs = [1, 2, 3, 4]
     studies = [1, 2, 3]
     
@@ -98,17 +137,29 @@ def execute():
                 stimulus, sub, sub2assignment_n_scheme, coding_scheme
             )
             for study in studies:
-                
-                trials_to_group = []
                 for run in runs:
+                    trials_to_group = []
+                    stimulus_onset = []
+                
+                    # get from 'behaviour/' which has info about 
+                    # trial - stimulus pair
                     trials_to_group = group_trials_by_stimulus(
                         study, run, sub, trials_to_group, sub_stimulus
                     )
                     
-                    # TODO: get stimulus onset info based on trials.
+                    # given the trials of the stimulus, we can get 
+                    # stimulus onset from 'trialtiming/'
+                    stimulus_onset = group_stimulus_onset_by_trials(
+                        study, run, sub, stimulus_onset, trials_to_group
+                    )
+                    
+                    # given the stimulus onset, create one-hot columns
+                    # in a design matrix.
+                    create_design_mtx(stimulus_onset)
                     exit()
                 
-                # TODO: design mtx study level per subject? (group later runs together?)
+                # TODO: one design mtx is one subject and one study?
+                # TODO: one design mtx is one run or all later runs?
                     
             
 if __name__ == '__main__':
