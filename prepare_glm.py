@@ -53,69 +53,6 @@ def dcnnCoding2subjectCoding(
     return sub_stimulus
 
 
-def group_trials_by_stimulus(study, run, sub, trials_to_group, sub_stimulus):
-    """
-    For each subject, of a given task, we need to 
-    group the trials into columns of the same stimulus.
-    This is for us later to construct a design matrix for GLM.
-    
-    Given a study and a run (behaviour/), we locate the trials 
-    where the target stimulus is presented to the subject.
-    
-    We can then according to trials, extract stimulus onset info
-    from (trialtiming/) which will then be convolved by HDF
-    """
-    fpath = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{study}_run{run}.txt'
-    print(f'[Check] fpath = {fpath}')
-    
-    trials = pd.read_csv(fpath, header=None).to_numpy()
-    
-    for trial in trials:
-        trial = trial[0].split('\t')
-        
-        if trial[3:6] == sub_stimulus:
-            trials_to_group.append(trial[0])
-    
-    print(f'[Check] trials_to_group = {trials_to_group}')
-    return trials_to_group
-
-
-def group_stimulus_onset_by_trials(study, run, sub, stimulus_onset, trials_to_group):
-    """
-    After `group_trials_by_stimulus`, we have all trials of a run where 
-    the target stimulus is presented. Given these trials, we can look 
-    for their corresponding stimulus onset from 'trialtiming/'
-    """
-    fpath = f'Mack-Data/trialtiming/{sub}_study{study}_run{run}.txt'
-    trials = pd.read_csv(fpath, header=None).to_numpy()
-    
-    for trial in trials:
-        trial = trial[0].split('\t')
-        
-        if trial[1] in trials_to_group:
-            stimulus_onset.append(trial[4])
-    
-    print(f'[Check] stimulus_onset = {stimulus_onset}')
-    return stimulus_onset
-
-
-def create_design_mtx(stimulus_onset):
-    """
-    Given stimulus onset info of a run & sub & study, create
-    one-hot columns into design matrix before convolved by 
-    HRF.
-    """
-    # TODO: column length 194s * 2?
-    regressors = np.zeros((194 * 2, len(stimulus_onset))) 
-    for i, time in enumerate(stimulus_onset):
-        print(time, i)
-        regressors[int(time), i] = 1
-    
-    print(regressors[:, 2])
-    print(regressors[:, 3])
-    
-
-
 def execute():
     # stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
     stimuli = ['101']
@@ -136,31 +73,56 @@ def execute():
             sub_stimulus = dcnnCoding2subjectCoding(
                 stimulus, sub, sub2assignment_n_scheme, coding_scheme
             )
-            for study in studies:
-                for run in runs:
-                    trials_to_group = []
-                    stimulus_onset = []
-                
-                    # get from 'behaviour/' which has info about 
-                    # trial - stimulus pair
-                    trials_to_group = group_trials_by_stimulus(
-                        study, run, sub, trials_to_group, sub_stimulus
-                    )
                     
-                    # given the trials of the stimulus, we can get 
-                    # stimulus onset from 'trialtiming/'
-                    stimulus_onset = group_stimulus_onset_by_trials(
-                        study, run, sub, stimulus_onset, trials_to_group
-                    )
-                    
-                    # given the stimulus onset, create one-hot columns
-                    # in a design matrix.
-                    create_design_mtx(stimulus_onset)
-                    exit()
-                
-                # TODO: one design mtx is one subject and one study?
-                # TODO: one design mtx is one run or all later runs?
-                    
+    
+def prepare_events_table(sub, study, run):
+    """
+    Given a subject, study and run, produce a 
+    table which contains:
+    
+    onset   duration    weight  stimulus (i.e. trial_type)
+    -----   --------    ------  --------
+    
+    - Both `onset` and `duration` are from 'trialtiming/'
+    - weight is 1
+    - trial_type is from 'behaviour/'
+    """
+    trialtiming_path = f'Mack-Data/trialtiming/{sub}_study{study}_run{run}.txt'
+    behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{study}_run{run}.txt'
+    trialtiming = pd.read_csv(trialtiming_path, header=None).to_numpy()
+    behaviour = pd.read_csv(behaviour_path, header=None).to_numpy()
+    
+    
+    onsets = ['onset']
+    durations = ['duration']
+    weights = ['weight']
+    stimuli = ['stimulus']
+        
+    for i in range(len(trialtiming)):
+        trialtiming_i = trialtiming[i][0].split('\t')
+        behaviour_i = behaviour[i][0].split('\t')
+        
+        onset = int(trialtiming_i[4])
+        # TODO: which is right?
+        # duration = int(trialtiming_i[5]) - onset
+        duration = 3.5
+        # from ['1', '0', '1'] to '101'
+        stimulus = ''.join(behaviour_i[3:6])
+        
+        onsets.append(onset)
+        durations.append(duration)
+        stimuli.append(stimulus)
+
+    onsets = np.array(onsets)
+    durations = np.array(durations)
+    stimuli = np.array(stimuli)
+    df = np.vstack((onsets, durations, stimuli)).T
+    pd.DataFrame(df).to_csv(
+        f"{sub}_study{study}_run{run}.tsv", 
+        sep='\t', index=False, header=False
+    )
+    print(f'[Check] Saved tsv.')
+
             
 if __name__ == '__main__':
-    execute()
+    prepare_events_table(sub='02', study='1', run='1')
