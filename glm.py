@@ -79,16 +79,22 @@ def GLM(sub, task, run):
     )
 
     # Condition names
-    condition_names = ['000', '001', '010', '011', '100', '101', '110', '111']
+    condition_names = [
+        '000', '001', '010', '011', 
+        '100', '101', '110', '111',
+        '000_fb', '001_fb', '010_fb', '011_fb', 
+        '100_fb', '101_fb', '110_fb', '111_fb',
+    ]
+        
     # Contrasts
-    cont01 = ['000',         'T', condition_names, [1, 0, 0, 0, 0, 0, 0, 0]]
-    cont02 = ['001',         'T', condition_names, [0, 1, 0, 0, 0, 0, 0, 0]]
-    cont03 = ['010',         'T', condition_names, [0, 0, 1, 0, 0, 0, 0, 0]]
-    cont04 = ['011',         'T', condition_names, [0, 0, 0, 1, 0, 0, 0, 0]]
-    cont05 = ['100',         'T', condition_names, [0, 0, 0, 0, 1, 0, 0, 0]]
-    cont06 = ['101',         'T', condition_names, [0, 0, 0, 0, 0, 1, 0, 0]]
-    cont07 = ['110',         'T', condition_names, [0, 0, 0, 0, 0, 0, 1, 0]]
-    cont08 = ['111',         'T', condition_names, [0, 0, 0, 0, 0, 0, 0, 1]]
+    cont01 = ['000', 'T', condition_names, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont02 = ['001', 'T', condition_names, [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont03 = ['010', 'T', condition_names, [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont04 = ['011', 'T', condition_names, [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont05 = ['100', 'T', condition_names, [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont06 = ['101', 'T', condition_names, [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont07 = ['110', 'T', condition_names, [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    cont08 = ['111', 'T', condition_names, [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]]
     
     # FIXME:
     # contrast_list = [cont01, cont02, cont03, cont04, cont05, cont06, cont07, cont08]
