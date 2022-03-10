@@ -75,9 +75,9 @@ def execute():
             )
                     
     
-def prepare_events_table(sub, study, run):
+def prepare_events_table(sub, task, run):
     """
-    Given a subject, study and run, produce a 
+    Given a subject, task and run, produce a 
     table which contains:
     
     onset   duration    weight  stimulus (i.e. trial_type)
@@ -87,12 +87,11 @@ def prepare_events_table(sub, study, run):
     - weight is 1
     - trial_type is from 'behaviour/'
     """
-    trialtiming_path = f'Mack-Data/trialtiming/{sub}_study{study}_run{run}.txt'
-    behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{study}_run{run}.txt'
+    trialtiming_path = f'Mack-Data/trialtiming/{sub}_study{task}_run{run}.txt'
+    behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{task}_run{run}.txt'
     trialtiming = pd.read_csv(trialtiming_path, header=None).to_numpy()
     behaviour = pd.read_csv(behaviour_path, header=None).to_numpy()
-    
-    
+
     onsets = ['onset']
     durations = ['duration']
     weights = ['weight']
@@ -103,10 +102,8 @@ def prepare_events_table(sub, study, run):
         behaviour_i = behaviour[i][0].split('\t')
         
         onset = int(trialtiming_i[4])
-        # TODO: which is right?
-        # duration = int(trialtiming_i[5]) - onset
         duration = 3.5
-        # from ['1', '0', '1'] to '101'
+        # convert ['1', '0', '1'] to '101'
         stimulus = ''.join(behaviour_i[3:6])
         
         onsets.append(onset)
@@ -118,11 +115,37 @@ def prepare_events_table(sub, study, run):
     stimuli = np.array(stimuli)
     df = np.vstack((onsets, durations, stimuli)).T
     pd.DataFrame(df).to_csv(
-        f"{sub}_study{study}_run{run}.tsv", 
+        f"sub-{sub}_task-{task}_run-{run}_events.tsv", 
         sep='\t', index=False, header=False
     )
     print(f'[Check] Saved tsv.')
 
-            
+   
+def prepare_motion_correction_params(sub, task, run):
+    """
+    For fitting GLM, we will need to extract
+    mc params from the preprocessed data.
+    """
+    confounds_path = f'Mack-Data/derivatives/sub-{sub}/func/' \
+        f'sub-{sub}_task-{task}_run-{run}_desc-confounds_timeseries.tsv'
+    mc_params = pd.read_table(
+        confounds_path, 
+        usecols=[
+            'trans_x', 'trans_y', 'trans_z', 
+            'rot_x', 'rot_y', 'rot_z'
+        ]
+    )
+
+    pd.DataFrame(mc_params).to_csv(
+        f"sub-{sub}_task-{task}_run-{run}_mc_params.tsv", 
+        sep='\t', index=False, header=False
+    )
+    print(f'[Check] Saved mc_params.')
+
+         
 if __name__ == '__main__':
-    prepare_events_table(sub='02', study='1', run='1')
+    sub='02'
+    task='1'
+    run='1'
+    prepare_events_table(sub=sub, task=task, run=run)
+    prepare_motion_correction_params(sub=sub, task=task, run=run)
