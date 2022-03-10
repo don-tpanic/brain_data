@@ -101,14 +101,21 @@ def prepare_events_table(sub, task, run):
         trialtiming_i = trialtiming[i][0].split('\t')
         behaviour_i = behaviour[i][0].split('\t')
         
-        onset = int(trialtiming_i[4])
-        duration = 3.5
-        # convert ['1', '0', '1'] to '101'
-        stimulus = ''.join(behaviour_i[3:6])
-        
-        onsets.append(onset)
-        durations.append(duration)
+        # stimulus events
+        stimulus_onset = int(trialtiming_i[4])
+        stimulus_duration = 3.5
+        stimulus = ''.join(behaviour_i[3:6])   # convert ['1', '0', '1'] to '101'
+        onsets.append(stimulus_onset)
+        durations.append(stimulus_duration)
         stimuli.append(stimulus)
+        
+        # feedback events
+        feedback_onset = int(trialtiming_i[5])
+        feedback_duration = 2.0
+        stimulus_fb = f'{stimulus}_fb'
+        onsets.append(feedback_onset)
+        durations.append(feedback_duration)
+        stimuli.append(stimulus_fb)
 
     onsets = np.array(onsets)
     durations = np.array(durations)
@@ -148,4 +155,4 @@ if __name__ == '__main__':
     task='1'
     run='1'
     prepare_events_table(sub=sub, task=task, run=run)
-    prepare_motion_correction_params(sub=sub, task=task, run=run)
+    # prepare_motion_correction_params(sub=sub, task=task, run=run)
