@@ -17,6 +17,10 @@ from nipype import SelectFiles
 from nipype.algorithms.misc import Gunzip
 from nipype.interfaces.io import DataSink
 
+import nibabel as nb
+from nilearn.plotting import plot_anat
+from nilearn.plotting import plot_glass_brain
+
 """
 ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
 """
@@ -34,7 +38,7 @@ def GLM(sub, task, run):
     analysis1st = Workflow(name='work_1st', base_dir=base_dir)
 
     trialinfo = pd.read_table(
-        f'{root_path}/{sub}_study{task}_run{run}.tsv', 
+        f'{root_path}/sub-{sub}_task-{task}_run-{run}_events.tsv', 
         dtype={'stimulus': str}
     )
     
@@ -85,6 +89,8 @@ def GLM(sub, task, run):
     cont06 = ['101',         'T', condition_names, [0, 0, 0, 0, 0, 1, 0, 0]]
     cont07 = ['110',         'T', condition_names, [0, 0, 0, 0, 0, 0, 1, 0]]
     cont08 = ['111',         'T', condition_names, [0, 0, 0, 0, 0, 0, 0, 1]]
+    
+    # FIXME:
     # contrast_list = [cont01, cont02, cont03, cont04, cont05, cont06, cont07, cont08]
     contrast_list = [cont01]
 
@@ -153,6 +159,8 @@ def GLM(sub, task, run):
     # Location of the template
     template = '/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii'
     # Initiate the Normalize12 node here
+    
+    # FIXME:
     normalize = Node(
         Normalize12(
             jobtype='estwrite', 
@@ -175,12 +183,15 @@ def GLM(sub, task, run):
     )
 
     # String template with {}-based strings
+    # FIXME:
     templates = {
         'anat': '/home/ken/projects/brain_data/Mack-Data/dropbox/' \
                 'sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
-        #  'mc_param': '/output/datasink_handson/preproc/sub-{subj_id}.par',
+        'mc_param': '/home/ken/projects/brain_data/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
+        # 'mc_param': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
+        #         'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
         #  'outliers': '/output/datasink_handson/preproc/art.sub-{subj_id}_outliers.txt'
     }
 
@@ -212,9 +223,9 @@ def GLM(sub, task, run):
                          (sf, gunzip_func, [('func', 'in_file')]),
                          (gunzip_anat, normalize, [('out_file', 'image_to_align')]),
                          (gunzip_func, modelspec, [('out_file', 'functional_runs')]),
-                        #  (sf, modelspec, [('mc_param', 'realignment_parameters'),
-                        #                   ('outliers', 'outlier_files'),
-                        #                   ])
+                         (sf, modelspec, [('mc_param', 'realignment_parameters'),
+                                        #   ('outliers', 'outlier_files'),
+                                          ])
                         ])
 
     # Initiate DataSink node here
@@ -264,78 +275,76 @@ def GLM(sub, task, run):
 
 def visualize_glm(sub, task, run):
     output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
-    
     # Visualize results
     out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
                f'{base_dir}/datasink_handson/1stLevel/{output_dir}'
-
     # Using scipy's loadmat function we can access SPM.mat
     spmmat = loadmat(
         f'{out_path}/SPM.mat',
         struct_as_record=False
     )
-    
-    designMatrix = spmmat['SPM'][0][0].xX[0][0].X
+    ## designMatrix -> (194, 9)
+    # designMatrix = spmmat['SPM'][0][0].xX[0][0].X    
+    # names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
+    # normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
+    # fig, ax = plt.subplots(figsize=(8, 8))
+    # plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
+    # ax.set_ylabel('Volume id')
+    # ax.set_xticks(np.arange(len(names)))
+    # ax.set_xticklabels(names, rotation=90)
+    # plt.savefig('dmtx.png')
+    # plt.close()
 
-    print(designMatrix.shape)
-    
-    # exit()
-    
-    names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
-    normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
-    fig, ax = plt.subplots(figsize=(8, 8))
-    plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
-    ax.set_ylabel('Volume id')
-    ax.set_xticks(np.arange(len(names)))
-    ax.set_xticklabels(names, rotation=90)
-    plt.savefig('dmtx.png')
-    plt.close()
+    # Load and viz beta weights
+    fig, ax = plt.subplots()
+    out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+               f'{base_dir}/datasink_handson/model/{output_dir}'
+               
+    # (82, 109, 87)
+    beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
+    beta_0002 = nb.load(f'{out_path}/beta_0002.nii')
 
     # Visualize
-    import nibabel as nb
-    from nilearn.plotting import plot_anat
-    from nilearn.plotting import plot_glass_brain
+    # fig, ax = plt.subplots()
+    # # Load GM probability map of TPM.nii
+    # img = nb.load('/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii')
+    # GM_template = nb.Nifti1Image(
+    #     img.get_data()[..., 0], img.affine, img.header
+    # )
 
-    fig, ax = plt.subplots()
-    # Load GM probability map of TPM.nii
-    img = nb.load('/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii')
-    GM_template = nb.Nifti1Image(
-        img.get_data()[..., 0], img.affine, img.header
-    )
+    # # Plot normalized subject anatomy
+    # display = plot_anat(
+    #     f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
+    #     f'datasink/{base_dir}/datasink_handson/normalized/' \
+    #     f'{output_dir}/wsub-{sub}_T1w.nii', axes=ax
+    # )
 
-    # Plot normalized subject anatomy
-    display = plot_anat(
-        f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
-        f'datasink/{base_dir}/datasink_handson/normalized/' \
-        f'{output_dir}/wsub-{sub}_T1w.nii', axes=ax
-    )
-
-    # Overlay in edges GM map
-    display.add_edges(GM_template)
-    plt.savefig('brain_anat.png')
-    plt.close()
+    # # Overlay in edges GM map
+    # display.add_edges(GM_template)
+    # plt.savefig('brain_anat.png')
+    # plt.close()
     
-    fig, ax = plt.subplots()
-    plot_glass_brain(
-        f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-        f'{base_dir}/datasink_handson/normalized/{output_dir}/wcon_0001.nii',
-        colorbar=True, 
-        display_mode='lyrz', 
-        black_bg=True, 
-        threshold=15,
-        title=f'subject {sub} - F-contrast: Activation',
-        axes=ax
-    )
-    plt.savefig('brain.png')
+    # fig, ax = plt.subplots()
+    # plot_glass_brain(
+    #     f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+    #     f'{base_dir}/datasink_handson/normalized/{output_dir}/wcon_0001.nii',
+    #     colorbar=True, 
+    #     display_mode='lyrz', 
+    #     black_bg=True, 
+    #     threshold=15,
+    #     title=f'subject {sub} - F-contrast: Activation',
+    #     axes=ax
+    # )
+    # plt.savefig('brain.png')
     
 
 if __name__ == '__main__':
 
-    root_path = '/home/ken/projects/brain_data/'
+    root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm_test'
     
     sub = '02'
     task = '1'
     run = '1'
-    # GLM(sub=sub, task=task, run=run)
-    visualize_glm(sub=sub, task=task, run=run)
+    GLM(sub=sub, task=task, run=run)
+    # visualize_glm(sub=sub, task=task, run=run)
