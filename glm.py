@@ -1,5 +1,9 @@
 import json
+import numpy as np
 import pandas as pd
+from scipy.io import loadmat
+import matplotlib.pyplot as plt
+from IPython.display import Image
 
 from nipype import Node, Workflow
 from nipype.interfaces.matlab import MatlabCommand
@@ -13,22 +17,24 @@ from nipype import SelectFiles
 from nipype.algorithms.misc import Gunzip
 from nipype.interfaces.io import DataSink
 
-from IPython.display import Image
+"""
+ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
+"""
 
 
-def run_glm(sub, task, run):
-    
+def GLM(sub, task, run):
+    """
+    Run GLM of a given (sub, task, run)
+    """
     # TR of functional images
-    with open('Mack-Data/dropbox/sub-02/func/sub-02_task-1_run-01_bold.json', 'rt') as fp:
-        task_info = json.load(fp)
-    TR = task_info['RepetitionTime']
+    TR = 2.0
 
     # Specify which SPM to use
     MatlabCommand.set_default_paths('/opt/spm12-r7771/spm12_mcr/spm12')
-    analysis1st = Workflow(name='work_1st', base_dir='output_try2')
+    analysis1st = Workflow(name='work_1st', base_dir=base_dir)
 
     trialinfo = pd.read_table(
-        f'/home/ken/projects/brain_data/{sub}_study{task}_run{run}.tsv', 
+        f'{root_path}/{sub}_study{task}_run{run}.tsv', 
         dtype={'stimulus': str}
     )
     
@@ -42,24 +48,31 @@ def run_glm(sub, task, run):
         onsets.append(list(group[1].onset))
         durations.append(group[1].duration.tolist())
         
-    subject_info = [Bunch(conditions=conditions,
-                            onsets=onsets,
-                            durations=durations,
-                            #amplitudes=None,
-                            #tmod=None,
-                            #pmod=None,
-                            #regressor_names=None,
-                            #regressors=None
-                            )]
+    subject_info = [
+        Bunch(
+            conditions=conditions,
+            onsets=onsets,
+            durations=durations,
+            #amplitudes=None,
+            #tmod=None,
+            #pmod=None,
+            #regressor_names=None,
+            #regressors=None
+        )
+    ]
 
     # Initiate the SpecifySPMModel node here
-    modelspec = Node(SpecifySPMModel(concatenate_runs=False,
-                                     input_units='secs',
-                                     output_units='secs',
-                                     time_repetition=TR,
-                                     high_pass_filter_cutoff=128,
-                                     subject_info=subject_info),
-                     name="modelspec")
+    modelspec = Node(
+        SpecifySPMModel(
+            concatenate_runs=False,
+            input_units='secs',
+            output_units='secs',
+            time_repetition=TR,
+            high_pass_filter_cutoff=128,
+            subject_info=subject_info
+        ),
+        name="modelspec"
+    )
 
     # Condition names
     condition_names = ['000', '001', '010', '011', '100', '101', '110', '111']
@@ -76,72 +89,118 @@ def run_glm(sub, task, run):
     contrast_list = [cont01]
 
     # Initiate the Level1Design node here
-    level1design = Node(Level1Design(bases={'hrf': {'derivs': [0, 0]}},
-                                     timing_units='secs',
-                                     interscan_interval=TR,
-                                     model_serial_correlations='FAST'),
-                        name="level1design")
+    level1design = Node(
+        Level1Design(
+            bases={'hrf': {'derivs': [0, 0]}},
+            timing_units='secs',
+            interscan_interval=TR,
+            model_serial_correlations='FAST'
+        ),
+        name="level1design"
+    )
+    
     # Now that we have the Model Specification and 1st-Level Design node, we can connect them to each other:
-
     # Connect the two nodes here
-    analysis1st.connect([(modelspec, level1design, [('session_info',
-                                                     'session_info')])])
+    analysis1st.connect(
+        [
+            (modelspec, level1design, 
+                [
+                    ('session_info', 'session_info')
+                ]
+            )
+        ]
+    )
     
     # Now we need to estimate the model. I recommend that you'll use a Classical: 1 method to estimate the model.
     # Initiate the EstimateModel node here
-    level1estimate = Node(EstimateModel(estimation_method={'Classical': 1}),
-                          name="level1estimate")
+    level1estimate = Node(
+        EstimateModel(
+            estimation_method={'Classical': 1}
+        ),
+        name="level1estimate"
+    )
 
     # Connect the two nodes here
-    analysis1st.connect([(level1design, level1estimate, [('spm_mat_file',
-                                                          'spm_mat_file')])])
+    analysis1st.connect(
+        [
+            (level1design, level1estimate, 
+                [
+                    ('spm_mat_file', 'spm_mat_file')
+                ]
+            )
+        ]
+    )
 
     # Initiate the EstimateContrast node here
-    level1conest = Node(EstimateContrast(contrasts=contrast_list),
-                        name="level1conest")
+    level1conest = Node(
+        EstimateContrast(contrasts=contrast_list),
+        name="level1conest"
+    )
 
     # Connect the two nodes here
-    analysis1st.connect([(level1estimate, level1conest, [('spm_mat_file',
-                                                          'spm_mat_file'),
-                                                         ('beta_images',
-                                                          'beta_images'),
-                                                         ('residual_image',
-                                                          'residual_image')])])
+    analysis1st.connect(
+        [
+            (level1estimate, level1conest, 
+                [
+                    ('spm_mat_file','spm_mat_file'), 
+                    ('beta_images', 'beta_images'),
+                    ('residual_image', 'residual_image')
+                ]
+            )
+        ]
+    )
 
     # Location of the template
     template = '/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii'
     # Initiate the Normalize12 node here
-    normalize = Node(Normalize12(jobtype='estwrite',
-                                 tpm=template,
-                                 write_voxel_sizes=[4, 4, 4]
-                                ),
-                     name="normalize")
+    normalize = Node(
+        Normalize12(
+            jobtype='estwrite', 
+            tpm=template,
+            write_voxel_sizes=[4, 4, 4]
+        ),
+        name="normalize"
+    )
+    
     # Now we can connect the estimated contrasts to normalization node.
-
     # Connect the nodes here
-    analysis1st.connect([(level1conest, normalize, [('con_images',
-                                                     'apply_to_files')])
-                         ])
+    analysis1st.connect(
+        [
+            (level1conest, normalize, 
+                [
+                 ('con_images', 'apply_to_files')
+                ]
+            )
+        ]
+    )
 
     # String template with {}-based strings
-    templates = {'anat': '/home/ken/projects/brain_data/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
-                 'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
-                #  'mc_param': '/output/datasink_handson/preproc/sub-{subj_id}.par',
-                #  'outliers': '/output/datasink_handson/preproc/art.sub-{subj_id}_outliers.txt'
-                }
+    templates = {
+        'anat': '/home/ken/projects/brain_data/Mack-Data/dropbox/' \
+                'sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
+        'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
+                'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
+        #  'mc_param': '/output/datasink_handson/preproc/sub-{subj_id}.par',
+        #  'outliers': '/output/datasink_handson/preproc/art.sub-{subj_id}_outliers.txt'
+    }
 
     # Create SelectFiles node
-    sf = Node(SelectFiles(templates, sort_filelist=True),
-              name='selectfiles')
+    sf = Node(
+        SelectFiles(
+            templates, 
+            sort_filelist=True
+        ),
+        name='selectfiles'
+    )
 
     # list of subject identifiers
-    subject_list = ['02']
-    task_list = ['1']
-    run_list = ['1']
+    subject_list = [f'{sub}']
+    task_list = [f'{task}']
+    run_list = [f'{run}']
     sf.iterables = [
         ('sub', subject_list), 
         ('task', task_list), 
-        ('run', run_list)
+        ('run', run_list),
     ]
 
     # Initiate the two Gunzip node here
@@ -161,43 +220,67 @@ def run_glm(sub, task, run):
     # Initiate DataSink node here
     # Initiate the datasink node
     output_folder = 'datasink_handson'
-    datasink = Node(DataSink(base_directory='output_try2',
-                             container=output_folder),
-                    name="datasink")
+    datasink = Node(
+        DataSink(
+            base_directory=base_dir,
+            container=output_folder
+        ),
+        name="datasink"
+    )
     ## Use the following substitutions for the DataSink output
-    substitutions = [('_sub_', 'sub-')]
+    substitutions = [('_run_', 'output_run_')]
     datasink.inputs.substitutions = substitutions
 
-    analysis1st.connect([(level1conest, datasink, [('spm_mat_file', '1stLevel.@spm_mat'),
-                                                   ('spmT_images', '1stLevel.@T'),
-                                                   ('spmF_images', '1stLevel.@F'),
-                                                  ]),
-                         (normalize, datasink, [('normalized_files', 'normalized.@files'),
-                                                ('normalized_image', 'normalized.@image'),
-                                               ]),
-                        ])
+    analysis1st.connect(
+        [
+            (level1estimate, datasink,
+                [
+                    ('beta_images', 'model.@beta'),
+                ]
+            ),
+            (level1conest, datasink, 
+                [
+                    ('spm_mat_file', '1stLevel.@spm_mat'),
+                    ('spmT_images', '1stLevel.@T'),
+                    ('spmF_images', '1stLevel.@F'),
+                ]
+            ),
+            (normalize, datasink, 
+                [
+                    ('normalized_files', 'normalized.@files'),
+                    ('normalized_image', 'normalized.@image'),
+                ]
+            ),
+        ]
+    )
 
     # Create 1st-level analysis output graph
     analysis1st.write_graph(graph2use='colored', format='png', simple_form=True)
 
     # Visualize the graph
-    Image(filename='output_try2/work_1st/graph.png')
+    Image(filename=f'{base_dir}/work_1st/graph.png')
     analysis1st.run('MultiProc', plugin_args={'n_procs': 8})
 
 
-def visualize_glm(sub):
+def visualize_glm(sub, task, run):
+    output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
+    
     # Visualize results
-    out_path = f'/home/ken/projects/brain_data/output_try2/work_1st/sub-{sub}/datasink/output_try2/datasink_handson/1stLevel/sub-{sub}/'
-
-    import numpy as np
-    from matplotlib import pyplot as plt
-    from scipy.io import loadmat
+    out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+               f'{base_dir}/datasink_handson/1stLevel/{output_dir}'
 
     # Using scipy's loadmat function we can access SPM.mat
-    spmmat = loadmat(f'{out_path}/SPM.mat',
-                    struct_as_record=False)
-
+    spmmat = loadmat(
+        f'{out_path}/SPM.mat',
+        struct_as_record=False
+    )
+    
     designMatrix = spmmat['SPM'][0][0].xX[0][0].X
+
+    print(designMatrix.shape)
+    
+    # exit()
+    
     names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
     normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -212,10 +295,8 @@ def visualize_glm(sub):
     import nibabel as nb
     from nilearn.plotting import plot_anat
     from nilearn.plotting import plot_glass_brain
-    # from IPython.display import Image
 
     fig, ax = plt.subplots()
-    
     # Load GM probability map of TPM.nii
     img = nb.load('/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii')
     GM_template = nb.Nifti1Image(
@@ -224,8 +305,9 @@ def visualize_glm(sub):
 
     # Plot normalized subject anatomy
     display = plot_anat(
-        f'/home/ken/projects/brain_data/output_try2/work_1st/sub-{sub}/datasink/output_try2/datasink_handson/normalized/sub-{sub}/wsub-{sub}_T1w.nii',
-        axes=ax
+        f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
+        f'datasink/{base_dir}/datasink_handson/normalized/' \
+        f'{output_dir}/wsub-{sub}_T1w.nii', axes=ax
     )
 
     # Overlay in edges GM map
@@ -233,10 +315,10 @@ def visualize_glm(sub):
     plt.savefig('brain_anat.png')
     plt.close()
     
-    
     fig, ax = plt.subplots()
     plot_glass_brain(
-        f'/home/ken/projects/brain_data/output_try2/work_1st/sub-{sub}/datasink/output_try2/datasink_handson/normalized/sub-{sub}/wcon_0001.nii',
+        f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+        f'{base_dir}/datasink_handson/normalized/{output_dir}/wcon_0001.nii',
         colorbar=True, 
         display_mode='lyrz', 
         black_bg=True, 
@@ -244,13 +326,16 @@ def visualize_glm(sub):
         title=f'subject {sub} - F-contrast: Activation',
         axes=ax
     )
-    
     plt.savefig('brain.png')
     
 
 if __name__ == '__main__':
+
+    root_path = '/home/ken/projects/brain_data/'
+    base_dir = 'glm_test'
+    
     sub = '02'
     task = '1'
     run = '1'
-    run_glm(sub=sub, task=task, run=run)
-    # visualize_glm(sub='02')
+    # GLM(sub=sub, task=task, run=run)
+    visualize_glm(sub=sub, task=task, run=run)
