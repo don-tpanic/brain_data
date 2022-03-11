@@ -1,3 +1,4 @@
+import os
 import json
 import numpy as np
 import pandas as pd
@@ -21,6 +22,8 @@ import nibabel as nb
 from nilearn.plotting import plot_anat
 from nilearn.plotting import plot_glass_brain
 
+import utils
+
 """
 Code for fitting GLM on preprocessed fMRI BOLD data
 from `brain_data/Mack-Data/derivatives`
@@ -39,11 +42,14 @@ def GLM(sub, task, run):
     MatlabCommand.set_default_paths('/opt/spm12-r7771/spm12_mcr/spm12')
     analysis1st = Workflow(name='work_1st', base_dir=base_dir)
 
-    trialinfo = pd.read_table(
-        f'{root_path}/sub-{sub}_task-{task}_run-{run}_events.tsv', 
-        dtype={'stimulus': str}
-    )
-    
+    # Create/load events and motion correction files.
+    events_file = f'{root_path}/sub-{sub}_task-{task}_run-{run}_events.tsv'
+    mc_params_file = f'{root_path}/sub-{sub}_task-{task}_run-{run}_mc_params.tsv'
+    if not os.path.exists(events_file):
+        utils.prepare_events_table(sub, task, run)
+        utils.prepare_motion_correction_params(sub, task, run)
+    trialinfo = pd.read_table(events_file, dtype={'stimulus': str})
+
     trialinfo.head()
     conditions = []
     onsets = []
@@ -198,9 +204,7 @@ def GLM(sub, task, run):
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
         'mc_param': '/home/ken/projects/brain_data/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
-        # 'mc_param': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
-        #         'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
-        #  'outliers': '/output/datasink_handson/preproc/art.sub-{subj_id}_outliers.txt'
+        #  'outliers': '/output/datasink/preproc/art.sub-{subj_id}_outliers.txt'
     }
 
     # Create SelectFiles node
@@ -238,7 +242,7 @@ def GLM(sub, task, run):
 
     # Initiate DataSink node here
     # Initiate the datasink node
-    output_folder = 'datasink_handson'
+    output_folder = 'datasink'
     datasink = Node(
         DataSink(
             base_directory=base_dir,
@@ -285,7 +289,7 @@ def visualize_glm(sub, task, run):
     output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
     # Visualize results
     out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-               f'{base_dir}/datasink_handson/1stLevel/{output_dir}'
+               f'{base_dir}/datasink/1stLevel/{output_dir}'
     # Using scipy's loadmat function we can access SPM.mat
     spmmat = loadmat(
         f'{out_path}/SPM.mat',
@@ -306,7 +310,7 @@ def visualize_glm(sub, task, run):
     # Load and viz beta weights
     fig, ax = plt.subplots()
     out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-               f'{base_dir}/datasink_handson/model/{output_dir}'
+               f'{base_dir}/datasink/model/{output_dir}'
                
     # (82, 109, 87)
     beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
@@ -323,7 +327,7 @@ def visualize_glm(sub, task, run):
     # # Plot normalized subject anatomy
     # display = plot_anat(
     #     f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
-    #     f'datasink/{base_dir}/datasink_handson/normalized/' \
+    #     f'datasink/{base_dir}/datasink/normalized/' \
     #     f'{output_dir}/wsub-{sub}_T1w.nii', axes=ax
     # )
 
@@ -335,7 +339,7 @@ def visualize_glm(sub, task, run):
     # fig, ax = plt.subplots()
     # plot_glass_brain(
     #     f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-    #     f'{base_dir}/datasink_handson/normalized/{output_dir}/wcon_0001.nii',
+    #     f'{base_dir}/datasink/normalized/{output_dir}/wcon_0001.nii',
     #     colorbar=True, 
     #     display_mode='lyrz', 
     #     black_bg=True, 
@@ -346,12 +350,22 @@ def visualize_glm(sub, task, run):
     # plt.savefig('brain.png')
     
 
+def execute():
+    """
+    Run GLM through all combo
+    """
+    for sub in subs:
+        for task in tasks:
+            for run in run:
+                GLM(sub, task, run)
+
+
 if __name__ == '__main__':
 
     root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm_test'
     
-    sub = '02'
+    sub = '03'
     task = '1'
     run = '1'
     GLM(sub=sub, task=task, run=run)
