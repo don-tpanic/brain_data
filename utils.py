@@ -199,7 +199,7 @@ def prepare_events_table(sub, task, run):
         f"sub-{sub}_task-{task}_run-{run}_events.tsv", 
         sep='\t', index=False, header=False
     )
-    print(f'[Check] Saved tsv.')
+    print(f'[Check] Saved events tsv.')
 
    
 def prepare_motion_correction_params(sub, task, run):
@@ -225,8 +225,4 @@ def prepare_motion_correction_params(sub, task, run):
 
          
 if __name__ == '__main__':
-    sub='02'
-    task='1'
-    run='1'
-    prepare_events_table(sub=sub, task=task, run=run)
-    # prepare_motion_correction_params(sub=sub, task=task, run=run)
+    pass
