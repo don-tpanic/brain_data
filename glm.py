@@ -22,9 +22,11 @@ from nilearn.plotting import plot_anat
 from nilearn.plotting import plot_glass_brain
 
 """
+Code for fitting GLM on preprocessed fMRI BOLD data
+from `brain_data/Mack-Data/derivatives`
+
 ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
 """
-
 
 def GLM(sub, task, run):
     """
