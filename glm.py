@@ -31,7 +31,7 @@ from `brain_data/Mack-Data/derivatives`
 ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
 """
 
-def GLM(sub, task, run):
+def GLM(sub, task, run, n_procs):
     """
     Run GLM of a given (sub, task, run)
     """
@@ -43,13 +43,13 @@ def GLM(sub, task, run):
     analysis1st = Workflow(name='work_1st', base_dir=base_dir)
 
     # Create/load events and motion correction files.
-    events_file = f'{root_path}/sub-{sub}_task-{task}_run-{run}_events.tsv'
-    mc_params_file = f'{root_path}/sub-{sub}_task-{task}_run-{run}_mc_params.tsv'
+    events_file = f'{root_path}/{base_dir}/sub-{sub}_task-{task}_run-{run}_events.tsv'
+    mc_params_file = f'{root_path}/{base_dir}/sub-{sub}_task-{task}_run-{run}_mc_params.tsv'
     if not os.path.exists(events_file):
-        utils.prepare_events_table(sub, task, run)
-        utils.prepare_motion_correction_params(sub, task, run)
+        utils.prepare_events_table(sub, task, run, save_dir=base_dir)
+        utils.prepare_motion_correction_params(sub, task, run, save_dir=base_dir)
+        
     trialinfo = pd.read_table(events_file, dtype={'stimulus': str})
-
     trialinfo.head()
     conditions = []
     onsets = []
@@ -65,11 +65,6 @@ def GLM(sub, task, run):
             conditions=conditions,
             onsets=onsets,
             durations=durations,
-            #amplitudes=None,
-            #tmod=None,
-            #pmod=None,
-            #regressor_names=None,
-            #regressors=None
         )
     ]
 
@@ -103,10 +98,7 @@ def GLM(sub, task, run):
     cont06 = ['101', 'T', condition_names, [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
     cont07 = ['110', 'T', condition_names, [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
     cont08 = ['111', 'T', condition_names, [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]]
-    
-    # FIXME:
-    # contrast_list = [cont01, cont02, cont03, cont04, cont05, cont06, cont07, cont08]
-    contrast_list = [cont01]
+    contrast_list = [cont01, cont02, cont03, cont04, cont05, cont06, cont07, cont08]
 
     # Initiate the Level1Design node here
     level1design = Node(
@@ -170,41 +162,13 @@ def GLM(sub, task, run):
         ]
     )
 
-    # Location of the template
-    template = '/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii'
-    # Initiate the Normalize12 node here
-    
-    # FIXME:
-    normalize = Node(
-        Normalize12(
-            jobtype='estwrite', 
-            tpm=template,
-            write_voxel_sizes=[4, 4, 4]
-        ),
-        name="normalize"
-    )
-    
-    # Now we can connect the estimated contrasts to normalization node.
-    # Connect the nodes here
-    analysis1st.connect(
-        [
-            (level1conest, normalize, 
-                [
-                 ('con_images', 'apply_to_files')
-                ]
-            )
-        ]
-    )
-
     # String template with {}-based strings
-    # FIXME:
     templates = {
         'anat': '/home/ken/projects/brain_data/Mack-Data/dropbox/' \
                 'sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
         'mc_param': '/home/ken/projects/brain_data/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
-        #  'outliers': '/output/datasink/preproc/art.sub-{subj_id}_outliers.txt'
     }
 
     # Create SelectFiles node
@@ -231,14 +195,14 @@ def GLM(sub, task, run):
     gunzip_func = Node(Gunzip(), name='gunzip_func')
 
     # Connect SelectFiles node to the other nodes here
-    analysis1st.connect([(sf, gunzip_anat, [('anat', 'in_file')]),
-                         (sf, gunzip_func, [('func', 'in_file')]),
-                         (gunzip_anat, normalize, [('out_file', 'image_to_align')]),
-                         (gunzip_func, modelspec, [('out_file', 'functional_runs')]),
-                         (sf, modelspec, [('mc_param', 'realignment_parameters'),
-                                        #   ('outliers', 'outlier_files'),
-                                          ])
-                        ])
+    analysis1st.connect(
+        [
+            (sf, gunzip_anat, [('anat', 'in_file')]),
+            (sf, gunzip_func, [('func', 'in_file')]),
+            (gunzip_func, modelspec, [('out_file', 'functional_runs')]),
+            (sf, modelspec, [('mc_param', 'realignment_parameters')])
+        ]
+    )
 
     # Initiate DataSink node here
     # Initiate the datasink node
@@ -268,12 +232,6 @@ def GLM(sub, task, run):
                     ('spmF_images', '1stLevel.@F'),
                 ]
             ),
-            (normalize, datasink, 
-                [
-                    ('normalized_files', 'normalized.@files'),
-                    ('normalized_image', 'normalized.@image'),
-                ]
-            ),
         ]
     )
 
@@ -282,7 +240,7 @@ def GLM(sub, task, run):
 
     # Visualize the graph
     Image(filename=f'{base_dir}/work_1st/graph.png')
-    analysis1st.run('MultiProc', plugin_args={'n_procs': 8})
+    analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
 
 
 def visualize_glm(sub, task, run):
@@ -295,78 +253,108 @@ def visualize_glm(sub, task, run):
         f'{out_path}/SPM.mat',
         struct_as_record=False
     )
-    ## designMatrix -> (194, 9)
-    # designMatrix = spmmat['SPM'][0][0].xX[0][0].X    
-    # names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
-    # normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
-    # fig, ax = plt.subplots(figsize=(8, 8))
-    # plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
-    # ax.set_ylabel('Volume id')
-    # ax.set_xticks(np.arange(len(names)))
-    # ax.set_xticklabels(names, rotation=90)
-    # plt.savefig('dmtx.png')
-    # plt.close()
+    # designMatrix -> (194, 9)
+    designMatrix = spmmat['SPM'][0][0].xX[0][0].X    
+    names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
+    normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
+    ax.set_ylabel('Volume id')
+    ax.set_xticks(np.arange(len(names)))
+    ax.set_xticklabels(names, rotation=90)
+    plt.savefig('dmtx.png')
+    plt.close()
 
-    # Load and viz beta weights
-    fig, ax = plt.subplots()
-    out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-               f'{base_dir}/datasink/model/{output_dir}'
+    # # Load and viz beta weights
+    # fig, ax = plt.subplots()
+    # out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+    #            f'{base_dir}/datasink/model/{output_dir}'
                
-    # (82, 109, 87)
-    beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
-    beta_0002 = nb.load(f'{out_path}/beta_0002.nii')
+    # # (82, 109, 87)
+    # beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
+    # beta_0002 = nb.load(f'{out_path}/beta_0002.nii')
 
     # Visualize
-    # fig, ax = plt.subplots()
-    # # Load GM probability map of TPM.nii
+    fig, ax = plt.subplots()
+    # Load GM probability map of TPM.nii
     # img = nb.load('/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii')
     # GM_template = nb.Nifti1Image(
     #     img.get_data()[..., 0], img.affine, img.header
     # )
 
-    # # Plot normalized subject anatomy
+    # Plot normalized subject anatomy
     # display = plot_anat(
     #     f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
-    #     f'datasink/{base_dir}/datasink/normalized/' \
-    #     f'{output_dir}/wsub-{sub}_T1w.nii', axes=ax
+    #     f'datasink/{base_dir}/datasink/1stLevel/' \
+    #     f'{output_dir}/spmT_0002.nii', axes=ax
     # )
+    display = plot_anat(
+        f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
+        axes=ax,
+    )
 
-    # # Overlay in edges GM map
+    # Overlay in edges GM map
     # display.add_edges(GM_template)
     # plt.savefig('brain_anat.png')
     # plt.close()
     
     # fig, ax = plt.subplots()
+    plot_glass_brain(
+        f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+        f'{base_dir}/datasink/1stLevel/{output_dir}/spmT_0002.nii',
+        colorbar=True, 
+        display_mode='lyrz', 
+        black_bg=True, 
+        threshold=0.1,
+        title=f'subject {sub} spmT_0002',
+        axes=ax)
+    plt.savefig('brain_spmT_0002.png')
+    
+    # out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+    #            f'{base_dir}/datasink/model/{output_dir}'
+    # beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
     # plot_glass_brain(
-    #     f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-    #     f'{base_dir}/datasink/normalized/{output_dir}/wcon_0001.nii',
+    #     f'{beta_0001}',
     #     colorbar=True, 
     #     display_mode='lyrz', 
     #     black_bg=True, 
     #     threshold=15,
-    #     title=f'subject {sub} - F-contrast: Activation',
+    #     title=f'subject {sub} beta',
     #     axes=ax
     # )
-    # plt.savefig('brain.png')
+    # plt.savefig('brain_beta.png')
     
 
-def execute():
+def execute(subs, tasks, runs, n_procs):
     """
     Run GLM through all combo
     """
     for sub in subs:
         for task in tasks:
-            for run in run:
-                GLM(sub, task, run)
+            for run in runs:
+                GLM(sub, task, run, n_procs)
 
 
 if __name__ == '__main__':
-
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm_test'
+    base_dir = 'glm'
+    subs = []
+    for i in range(2, 25):
+        if len(f'{i}') == 1:
+            subs.append(f'0{i}')
+        else:
+            subs.append(f'{i}')
+    tasks = [1, 2, 3]
+    runs = [1, 2, 3, 4]
+    n_procs = 60
+    print(f'subs={subs}')
+    print(f'tasks={tasks}')
+    print(f'runs={runs}')
+    print(f'n_procs={n_procs}')
+    execute(subs, tasks, runs, n_procs)
     
-    sub = '03'
-    task = '1'
-    run = '1'
-    GLM(sub=sub, task=task, run=run)
+    # sub = '02'
+    # task = '1'
+    # run = '1'
+    # GLM(sub=sub, task=task, run=run)
     # visualize_glm(sub=sub, task=task, run=run)
