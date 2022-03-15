@@ -339,13 +339,13 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm'
     subs = []
-    for i in range(2, 3):
+    for i in range(2, 25):
         if len(f'{i}') == 1:
             subs.append(f'0{i}')
         else:
             subs.append(f'{i}')
-    tasks = [1,]
-    runs = [1]
+    tasks = [1, 2, 3]
+    runs = [1, 2, 3, 4]
     n_procs = 60
     print(f'subs={subs}')
     print(f'tasks={tasks}')
