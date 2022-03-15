@@ -149,7 +149,7 @@ def execute():
             )
                     
     
-def prepare_events_table(sub, task, run):
+def prepare_events_table(sub, task, run, save_dir):
     """
     Given a subject, task and run, produce a 
     table which contains:
@@ -161,6 +161,9 @@ def prepare_events_table(sub, task, run):
     - weight is 1
     - trial_type is from 'behaviour/'
     """
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+        
     trialtiming_path = f'Mack-Data/trialtiming/{sub}_study{task}_run{run}.txt'
     behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{task}_run{run}.txt'
     trialtiming = pd.read_csv(trialtiming_path, header=None).to_numpy()
@@ -196,17 +199,20 @@ def prepare_events_table(sub, task, run):
     stimuli = np.array(stimuli)
     df = np.vstack((onsets, durations, stimuli)).T
     pd.DataFrame(df).to_csv(
-        f"sub-{sub}_task-{task}_run-{run}_events.tsv", 
+        f"{save_dir}/sub-{sub}_task-{task}_run-{run}_events.tsv", 
         sep='\t', index=False, header=False
     )
     print(f'[Check] Saved events tsv.')
 
    
-def prepare_motion_correction_params(sub, task, run):
+def prepare_motion_correction_params(sub, task, run, save_dir):
     """
     For fitting GLM, we will need to extract
     mc params from the preprocessed data.
     """
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+        
     confounds_path = f'Mack-Data/derivatives/sub-{sub}/func/' \
         f'sub-{sub}_task-{task}_run-{run}_desc-confounds_timeseries.tsv'
     mc_params = pd.read_table(
@@ -216,9 +222,8 @@ def prepare_motion_correction_params(sub, task, run):
             'rot_x', 'rot_y', 'rot_z'
         ]
     )
-
     pd.DataFrame(mc_params).to_csv(
-        f"sub-{sub}_task-{task}_run-{run}_mc_params.tsv", 
+        f"{save_dir}/sub-{sub}_task-{task}_run-{run}_mc_params.tsv", 
         sep='\t', index=False, header=False
     )
     print(f'[Check] Saved mc_params.')
