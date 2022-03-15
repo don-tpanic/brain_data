@@ -43,8 +43,8 @@ def GLM(sub, task, run, n_procs):
     analysis1st = Workflow(name='work_1st', base_dir=base_dir)
 
     # Create/load events and motion correction files.
-    events_file = f'{root_path}/{base_dir}/sub-{sub}_task-{task}_run-{run}_events.tsv'
-    mc_params_file = f'{root_path}/{base_dir}/sub-{sub}_task-{task}_run-{run}_mc_params.tsv'
+    events_file = f'{root_path}/{base_dir}/events/sub-{sub}_task-{task}_run-{run}_events.tsv'
+    mc_params_file = f'{root_path}/{base_dir}/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv'
     if not os.path.exists(events_file):
         utils.prepare_events_table(sub, task, run, save_dir=base_dir)
         utils.prepare_motion_correction_params(sub, task, run, save_dir=base_dir)
@@ -168,7 +168,7 @@ def GLM(sub, task, run, n_procs):
                 'sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
-        'mc_param': '/home/ken/projects/brain_data/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
+        'mc_param': '/home/ken/projects/brain_data/glm/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
     }
 
     # Create SelectFiles node
@@ -339,13 +339,13 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm'
     subs = []
-    for i in range(2, 25):
+    for i in range(2, 3):
         if len(f'{i}') == 1:
             subs.append(f'0{i}')
         else:
             subs.append(f'{i}')
-    tasks = [1, 2, 3]
-    runs = [1, 2, 3, 4]
+    tasks = [1,]
+    runs = [1]
     n_procs = 60
     print(f'subs={subs}')
     print(f'tasks={tasks}')
