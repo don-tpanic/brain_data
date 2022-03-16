@@ -1,9 +1,8 @@
 # Always produced by matlab?
 pyscript.m
 
-# Ignore test directory (when learning how to code glm)
-glm_test/
-scratch*/
+# big output files
+glm/
 
 # Ignore big files
 Mack-Data/
