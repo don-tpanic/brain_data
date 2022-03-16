@@ -243,87 +243,77 @@ def GLM(sub, task, run, n_procs):
     analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
 
 
-def visualize_glm(sub, task, run):
+def visualize_glm(sub, task, run, condition, plot):
     output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
-    # Visualize results
-    out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-               f'{base_dir}/datasink/1stLevel/{output_dir}'
-    # Using scipy's loadmat function we can access SPM.mat
-    spmmat = loadmat(
-        f'{out_path}/SPM.mat',
-        struct_as_record=False
-    )
-    # designMatrix -> (194, 9)
-    designMatrix = spmmat['SPM'][0][0].xX[0][0].X    
-    names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
-    normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
-    fig, ax = plt.subplots(figsize=(8, 8))
-    plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
-    ax.set_ylabel('Volume id')
-    ax.set_xticks(np.arange(len(names)))
-    ax.set_xticklabels(names, rotation=90)
-    plt.savefig('dmtx.png')
+    
+    if plot == 'dmtx':
+        # Visualize results
+        out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+                f'{base_dir}/datasink/1stLevel/{output_dir}'
+        # Using scipy's loadmat function we can access SPM.mat
+        spmmat = loadmat(
+            f'{out_path}/SPM.mat',
+            struct_as_record=False
+        )
+        # designMatrix -> (194, 9)
+        designMatrix = spmmat['SPM'][0][0].xX[0][0].X    
+        names = [i[0] for i in spmmat['SPM'][0][0].xX[0][0].name[0]]
+        normed_design = designMatrix / np.abs(designMatrix).max(axis=0)
+        fig, ax = plt.subplots(figsize=(8, 8))
+        plt.imshow(normed_design, aspect='auto', cmap='gray', interpolation='none')
+        ax.set_ylabel('Volume id')
+        ax.set_xticks(np.arange(len(names)))
+        ax.set_xticklabels(names, rotation=90)
+        plt.savefig('dmtx.png')
+        plt.close()
+
+    elif plot == 'anat':
+        fig, ax = plt.subplots()
+        plot_anat(
+            f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
+            axes=ax)
+        plt.savefig(f'anat_sub-{sub}.png')
+    
+    elif plot == 'contrast':
+        from nilearn.image import mean_img
+
+        print('sub = ', sub)
+
+        across_runs = []
+        for run in runs:        
+            output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
+            img = nb.load(
+                f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+                f'{base_dir}/datasink/1stLevel/{output_dir}/spmT_{condition}.nii')
+            
+            data = np.array(img.dataobj)
+            across_runs.append(data)
+            print(data.shape)
+        
+        across_runs = np.array(across_runs)
+        average_runs = np.mean(across_runs, axis=0)
+        # print(across_runs.shape)  # (run, 82, 109, 87)
+        # print(average_runs.shape) # (1,   82, 109, 87)
+        
+        # load the data
+        ni_img = nb.Nifti1Image(average_runs, img.affine)           
+        fig, ax = plt.subplots()
+        if len(runs) == 1:
+            title = f'spmT_{condition}-run{run}'
+        else:
+            title = f'spmT_{condition}-average'
+        plot_glass_brain(
+            stat_map_img=ni_img,
+            colorbar=True, 
+            display_mode='lyrz', 
+            black_bg=True, 
+            threshold=3,
+            title=title,
+            axes=ax)
+        plt.savefig(f'{title}.png')
+        
     plt.close()
 
-    # # Load and viz beta weights
-    # fig, ax = plt.subplots()
-    # out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-    #            f'{base_dir}/datasink/model/{output_dir}'
-               
-    # # (82, 109, 87)
-    # beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
-    # beta_0002 = nb.load(f'{out_path}/beta_0002.nii')
-
-    # Visualize
-    fig, ax = plt.subplots()
-    # Load GM probability map of TPM.nii
-    # img = nb.load('/opt/spm12-r7771/spm12_mcr/spm12/tpm/TPM.nii')
-    # GM_template = nb.Nifti1Image(
-    #     img.get_data()[..., 0], img.affine, img.header
-    # )
-
-    # Plot normalized subject anatomy
-    # display = plot_anat(
-    #     f'{root_path}/{base_dir}/work_1st/{output_dir}/' \
-    #     f'datasink/{base_dir}/datasink/1stLevel/' \
-    #     f'{output_dir}/spmT_0002.nii', axes=ax
-    # )
-    display = plot_anat(
-        f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
-        axes=ax,
-    )
-
-    # Overlay in edges GM map
-    # display.add_edges(GM_template)
-    # plt.savefig('brain_anat.png')
-    # plt.close()
-    
-    # fig, ax = plt.subplots()
-    plot_glass_brain(
-        f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-        f'{base_dir}/datasink/1stLevel/{output_dir}/spmT_0002.nii',
-        colorbar=True, 
-        display_mode='lyrz', 
-        black_bg=True, 
-        threshold=0.1,
-        title=f'subject {sub} spmT_0002',
-        axes=ax)
-    plt.savefig('brain_spmT_0002.png')
-    
-    # out_path = f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-    #            f'{base_dir}/datasink/model/{output_dir}'
-    # beta_0001 = nb.load(f'{out_path}/beta_0001.nii')
-    # plot_glass_brain(
-    #     f'{beta_0001}',
-    #     colorbar=True, 
-    #     display_mode='lyrz', 
-    #     black_bg=True, 
-    #     threshold=15,
-    #     title=f'subject {sub} beta',
-    #     axes=ax
-    # )
-    # plt.savefig('brain_beta.png')
-    
 
 def execute(subs, tasks, runs, n_procs):
     """
@@ -345,16 +335,19 @@ if __name__ == '__main__':
         else:
             subs.append(f'{i}')
     tasks = [1, 2, 3]
-    runs = [1, 2, 3, 4]
+    runs = [1,2,3,4]
     n_procs = 60
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
     print(f'n_procs={n_procs}')
-    execute(subs, tasks, runs, n_procs)
+    # execute(subs, tasks, runs, n_procs)
     
-    # sub = '02'
-    # task = '1'
-    # run = '1'
-    # GLM(sub=sub, task=task, run=run)
-    # visualize_glm(sub=sub, task=task, run=run)
+    sub = '02'
+    task = '1'
+    run = '1'
+    condition = '0001'
+    plot = 'contrast'
+    visualize_glm(
+        sub=sub, task=task, run=run, condition=condition, plot=plot
+    )
