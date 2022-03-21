@@ -6,7 +6,7 @@ from subprocess import call
 import nibabel as nb
 import nilearn as nl
 from nilearn.masking import apply_mask
-from nilearn.plotting import plot_glass_brain
+from nilearn.plotting import plot_glass_brain, plot_stat_map
 
 
 def transform():
@@ -59,6 +59,7 @@ def applyMask(
         target_shape=imgs.shape[:3], 
         interpolation='nearest'
     )
+    print('maskROI.shape = ', maskROI.shape)
     fmri_masked = apply_mask(
         imgs, maskROI, smoothing_fwhm=None
     )
@@ -66,20 +67,23 @@ def applyMask(
     return roiName, maskROI
     
 
-def visualize_mask(roiName, maskROI, threshold):
+def visualize_mask(sub, roiName, maskROI, threshold):
     """
     Given a final roi mask, visualize as an
     activation plot with `plot_glass_brain`
     """
+    T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
+
     fig, ax = plt.subplots()
-    plot_glass_brain(
-        stat_map_img=maskROI,
+    plot_stat_map(
+        maskROI, 
         colorbar=True, 
-        display_mode='lyrz', 
-        black_bg=True, 
-        threshold=0,
-        title=f'roi mask - {roiName}',
-        axes=ax)
+        threshold=0.00005, 
+        bg_img=T1_path,
+        title=f'roi: {roiName}',
+        axes=ax
+    )
+    
     plt.savefig(f'roiMask.png')
     plt.close()
 
@@ -93,5 +97,5 @@ if __name__ == '__main__':
     base_dir = 'glm'
     # transform()
     roiName, maskROI = applyMask()
-    visualize_mask(roiName=roiName, maskROI=maskROI, threshold=10)
+    visualize_mask(sub='02', roiName=roiName, maskROI=maskROI, threshold=10)
     
