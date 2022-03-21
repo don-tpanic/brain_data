@@ -243,7 +243,7 @@ def GLM(sub, task, run, n_procs):
     analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
 
 
-def visualize_glm(sub, task, run, condition, plot):
+def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
     output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
     
     if plot == 'dmtx':
@@ -282,9 +282,15 @@ def visualize_glm(sub, task, run, condition, plot):
         across_runs = []
         for run in runs:        
             output_dir = f'output_run_{run}_sub_{sub}_task_{task}'
-            img = nb.load(
-                f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
-                f'{base_dir}/datasink/1stLevel/{output_dir}/spmT_{condition}.nii')
+            
+            if dataType == 'spmT':
+                img = nb.load(
+                    f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+                    f'{base_dir}/datasink/1stLevel/{output_dir}/{dataType}_{condition}.nii')
+            elif dataType == 'beta':
+                img = nb.load(
+                    f'{root_path}/{base_dir}/work_1st/{output_dir}/datasink/' \
+                    f'{base_dir}/datasink/model/{output_dir}/{dataType}_{condition}.nii')
             
             data = np.array(img.dataobj)
             across_runs.append(data)
@@ -299,15 +305,15 @@ def visualize_glm(sub, task, run, condition, plot):
         ni_img = nb.Nifti1Image(average_runs, img.affine)           
         fig, ax = plt.subplots()
         if len(runs) == 1:
-            title = f'spmT_{condition}-run{run}'
+            title = f'{dataType}_{condition}-run{run}'
         else:
-            title = f'spmT_{condition}-average'
+            title = f'{dataType}_{condition}-average{runs}'
         plot_glass_brain(
             stat_map_img=ni_img,
             colorbar=True, 
             display_mode='lyrz', 
             black_bg=True, 
-            threshold=3,
+            threshold=threshold,
             title=title,
             axes=ax)
         plt.savefig(f'{title}.png')
@@ -335,7 +341,7 @@ if __name__ == '__main__':
         else:
             subs.append(f'{i}')
     tasks = [1, 2, 3]
-    runs = [1,2,3,4]
+    runs = [1, 2, 3, 4]
     n_procs = 60
     print(f'subs={subs}')
     print(f'tasks={tasks}')
@@ -346,8 +352,12 @@ if __name__ == '__main__':
     sub = '02'
     task = '1'
     run = '1'
-    condition = '0001'
+    dataType = 'beta'
+    condition = '0002'
     plot = 'contrast'
+    threshold = 10
     visualize_glm(
-        sub=sub, task=task, run=run, condition=condition, plot=plot
+        sub=sub, task=task, run=run, 
+        dataType=dataType, condition=condition, 
+        plot=plot, threshold=threshold
     )
