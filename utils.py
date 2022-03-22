@@ -78,10 +78,7 @@ class Mappings(object):
         self.sub2assignment_n_scheme = sub2assignment_n_scheme
 
 
-def dcnnCoding2subjectCoding(
-        stimulus, sub, 
-        sub2assignment_n_scheme, coding_scheme
-    ):
+def convert_dcnnCoding_to_subjectCoding(dcnn_stimulus, sub):
     """
     In order to extract stimulus-specific activations (for RSA later), 
     we need to first establish the mapping between stimulus coding of 
@@ -96,18 +93,21 @@ def dcnnCoding2subjectCoding(
     so what is the coding for this subject? i.e. thin leg=? thick antenna=? pincer mandible=?
     For different subs, this coding is different, depending on '12' or '21' random scheme: 
             
-    e.g. if incoming=101, 
+    e.g. if DCNN=101, 
             with assignment 213 and scheme 12, 12, 12
             101 -> 011 -> 011
             
             with assignment 312 and scheme 12, 21, 12
             101 -> 110 -> 100
     """
-    sub_stimulus = [i for i in stimulus]
+    sub2assignment_n_scheme = Mappings().sub2assignment_n_scheme
+    coding_scheme = Mappings().coding_scheme
+    
+    sub_stimulus = [i for i in dcnn_stimulus]
     print(f'\n\n--------------------------------')
     print(f'[Check] DCNN stimulus {sub_stimulus}')
     
-    # assignment
+    # assignment (flip three dims)
     assignment_n_scheme = sub2assignment_n_scheme[sub]
     new_stimulus_0 = sub_stimulus[assignment_n_scheme[0]-1]
     new_stimulus_1 = sub_stimulus[assignment_n_scheme[1]-1]
@@ -117,7 +117,7 @@ def dcnnCoding2subjectCoding(
     sub_stimulus[2] = new_stimulus_2
     # print(f'[Check] sub{sub}, assignment stimulus {sub_stimulus}')
     
-    # scheme
+    # scheme (flip binary codings)
     dim1_scheme = assignment_n_scheme[3]
     dim2_scheme = assignment_n_scheme[4]
     dim3_scheme = assignment_n_scheme[5]
@@ -126,28 +126,6 @@ def dcnnCoding2subjectCoding(
     sub_stimulus[2] = coding_scheme[dim3_scheme][sub_stimulus[2]]
     print(f'[Check] sub{sub}, scheme stimulus {sub_stimulus}')
     return sub_stimulus
-
-
-def execute():
-    # stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
-    stimuli = ['101']
-    sub2assignment_n_scheme = Mappings().sub2assignment_n_scheme
-    coding_scheme = Mappings().coding_scheme
-    subs = []
-    for i in range(2, 25):
-        if len(f'{i}') == 1:
-            subs.append(f'0{i}')
-        else:
-            subs.append(f'{i}')
-            
-    runs = [1, 2, 3, 4]
-    studies = [1, 2, 3]
-    
-    for stimulus in stimuli:
-        for sub in subs:
-            sub_stimulus = dcnnCoding2subjectCoding(
-                stimulus, sub, sub2assignment_n_scheme, coding_scheme
-            )
                     
     
 def prepare_events_table(sub, task, run, save_dir):
@@ -233,4 +211,4 @@ def prepare_motion_correction_params(sub, task, run, save_dir):
 
          
 if __name__ == '__main__':
-    pass
+    convert_dcnnCoding_to_subjectCoding(dcnn_stimulus='101', sub='23')
