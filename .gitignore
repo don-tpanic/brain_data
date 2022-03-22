@@ -1,14 +1,12 @@
 # Always produced by matlab?
 pyscript.m
 
-# big output files
-glm/
-
 # Ignore big files
 Mack-Data/
+glm/
+ROIs/
+RDMs/
 
-# Ignore content from clustering/
-clustering/results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
