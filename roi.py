@@ -1,21 +1,45 @@
 import os
 import numpy as np
+from subprocess import call
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import euclidean_distances
 
-import nipype.interfaces.ants as ants
-from subprocess import call
 import nibabel as nb
 import nilearn as nl
+import nipype.interfaces.ants as ants
+from nipype.interfaces.fsl import MultiImageMaths
 from nilearn.masking import apply_mask
 from nilearn.plotting import plot_glass_brain, plot_stat_map
+
+from utils import convert_dcnnCoding_to_subjectCoding
 
 """
 Extract ROI-level beta weights and compile into RDMs.
 """
 
-def transform(sub, roi):
+def merge_n_smooth_mask(roi, smooth):
+    """
+    First processing of the standard ROI masks is to
+    merge some left&right masks and smooth them.
+    """
+    if roi == 'LOC':
+        maths = MultiImageMaths()
+        maths.inputs.in_file = f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-LH{roi}.nii.gz"
+        maths.inputs.op_string = f"-add %s -s {smooth} -bin "
+        maths.inputs.operand_files = [
+            f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-RH{roi}.nii.gz", 
+            # f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-RH{roi}.nii.gz",
+            # f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-RH{roi}.nii.gz",
+            # f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-RH{roi}.nii.gz",
+        ]
+        maths.inputs.out_file = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
+        runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
+        print(runCmd)
+        call(runCmd, shell=True)
+        
+    
+def transform_mask_MNI_to_T1(sub, roi):
     """
     Given a subject and a ROI, 
     transform ROI mask from MNI space to subject's T1 space.
@@ -29,11 +53,9 @@ def transform(sub, roi):
     assert os.path.exists(transform_path)
     
     at.inputs.dimension = 3
-    
-    # TODO: change ROI dir
-    at.inputs.input_image = f'{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-{roi}.nii.gz'
+    at.inputs.input_image = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
     at.inputs.reference_image = f'{reference_image_path}/sub-{sub}_T1w.nii.gz'
-    at.inputs.output_image = f'{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-{roi}_output.nii.gz'
+    at.inputs.output_image = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
     at.inputs.interpolation = 'NearestNeighbor'
     at.inputs.default_value = 0
     at.inputs.transforms = [f'{transform_path}/sub-{sub}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5']
@@ -59,7 +81,7 @@ def applyMask(
     
     # TODO: change ROI dir
     maskROI = nb.load(
-        f'{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-{roi}_output.nii.gz'
+        f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
     )
     maskROI = nl.image.resample_img(
         maskROI, 
@@ -77,12 +99,25 @@ def applyMask(
 
 def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     """
-    Compute RDM of given beta weights
-    """    
+    Compute RDM (upper triangular) of given beta weights and sort 
+    the conditions based on DCNN codings.
+    """
     if distance == 'euclidean':
         RDM = euclidean_distances(embedding_mtx)
     elif distance == 'cosine':
         NotImplementedError()
+    
+    # NOTE(ken): subject level conditions have different physical meanings
+    # due to random shuffle. Hence here we do the conversion based on
+    # DCNN coding which has fixed and unique meaning.
+    conversion_ordering = convert_dcnnCoding_to_subjectCoding(sub)
+    # reorder both cols and rows based on ordering.
+    # TODO: double check correctness.
+    RDM = RDM[conversion_ordering, :][:, conversion_ordering]
+    
+    exit()
+    
+    RDM = RDM[np.triu_indices(RDM.shape[0])]
     
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
@@ -90,7 +125,7 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     print(f'[Check] Saved RDM: {save_path}')
     
 
-def visualize_mask(sub, roi, maskROI, threshold):
+def visualize_mask(sub, roi, maskROI, threshold=0.00005):
     """
     Given a final roi mask, visualize as an
     activation plot with `plot_glass_brain`
@@ -101,17 +136,18 @@ def visualize_mask(sub, roi, maskROI, threshold):
     plot_stat_map(
         maskROI, 
         colorbar=True, 
-        threshold=0.00005, 
+        threshold=threshold, 
         bg_img=T1_path,
         title=f'roi: {roi}',
         axes=ax
     )
     
+    print(f'[Check] Saved viz.')
     plt.savefig(f'roiMask.png')
     plt.close()
 
 
-def execute(rois, subs, tasks, runs, conditions):
+def execute(rois, subs, tasks, runs, conditions, visualize=False):
     """
     1. `transform`: Transform mask to T1 space
     2. `applyMask`: extract beta weights within a ROI
@@ -121,7 +157,7 @@ def execute(rois, subs, tasks, runs, conditions):
         for sub in subs:
             
             # TODO: somewhere here ROI needs a mapping due to naming.
-            transform(sub=sub, roi=roi)  # get subject-specific roi mask
+            transform_mask_MNI_to_T1(sub=sub, roi=roi)  # get subject-specific roi mask
             
             for task in tasks:
                 for run in runs:
@@ -138,6 +174,12 @@ def execute(rois, subs, tasks, runs, conditions):
                             dataType='beta', 
                             condition=condition
                         )
+                        
+                        # visualize masks as a check
+                        if visualize:
+                            visualize_mask(sub, roi, maskROI)
+                            exit()
+                        
                         beta_weights_masked.append(fmri_masked)
                     
                     beta_weights_masked = np.array(beta_weights_masked)
@@ -159,23 +201,26 @@ if __name__ == '__main__':
     glm_path = 'glm'
     roi_path = 'ROIs'
     rdm_path = 'RDMs'
-    rois = ['LHLOC']
-    subs = []
-    for i in range(2, 4):
-        if len(f'{i}') == 1:
-            subs.append(f'0{i}')
-        else:
-            subs.append(f'{i}')
+    rois = ['LOC']
+    num_subs = 23
+    num_conditions = 8
+    subs = [f'{i:02d}' for i in range(2, num_subs+1)]
+    conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
+    
     tasks = [1]
     runs = [1]
-    conditions = ['0001', '0002']
+    
     distances = ['euclidean']
+    
+    merge_n_smooth_mask(roi='LOC', smooth=0.2)
+    
     execute(
         rois=rois, 
         subs=subs, 
         tasks=tasks, 
         runs=runs, 
-        conditions=conditions
-    )    
+        conditions=conditions,
+        visualize=True
+    )
     
-    # FIXME: diff between anat space, T1 and MNI?
+    
