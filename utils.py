@@ -78,7 +78,7 @@ class Mappings(object):
         self.sub2assignment_n_scheme = sub2assignment_n_scheme
 
 
-def convert_dcnnCoding_to_subjectCoding(dcnn_stimulus, sub):
+def convert_dcnnCoding_to_subjectCoding(sub):
     """
     In order to extract stimulus-specific activations (for RSA later), 
     we need to first establish the mapping between stimulus coding of 
@@ -99,33 +99,52 @@ def convert_dcnnCoding_to_subjectCoding(dcnn_stimulus, sub):
             
             with assignment 312 and scheme 12, 21, 12
             101 -> 110 -> 100
+            
+    return:
+    -------
+        Given all DCNN stimuli, return the conversion ordering for a given subject.
+        E.g. for subject a, the orders of the stimuli should be [6, 1, 7, 5, 4, 2, 3, 0]
+        where 6 corresponds to 000 in DCNN coding but 110 in subject coding.
     """
     sub2assignment_n_scheme = Mappings().sub2assignment_n_scheme
     coding_scheme = Mappings().coding_scheme
     
-    sub_stimulus = [i for i in dcnn_stimulus]
-    print(f'\n\n--------------------------------')
-    print(f'[Check] DCNN stimulus {sub_stimulus}')
-    
-    # assignment (flip three dims)
-    assignment_n_scheme = sub2assignment_n_scheme[sub]
-    new_stimulus_0 = sub_stimulus[assignment_n_scheme[0]-1]
-    new_stimulus_1 = sub_stimulus[assignment_n_scheme[1]-1]
-    new_stimulus_2 = sub_stimulus[assignment_n_scheme[2]-1]
-    sub_stimulus[0] = new_stimulus_0
-    sub_stimulus[1] = new_stimulus_1
-    sub_stimulus[2] = new_stimulus_2
-    # print(f'[Check] sub{sub}, assignment stimulus {sub_stimulus}')
-    
-    # scheme (flip binary codings)
-    dim1_scheme = assignment_n_scheme[3]
-    dim2_scheme = assignment_n_scheme[4]
-    dim3_scheme = assignment_n_scheme[5]
-    sub_stimulus[0] = coding_scheme[dim1_scheme][sub_stimulus[0]]
-    sub_stimulus[1] = coding_scheme[dim2_scheme][sub_stimulus[1]]
-    sub_stimulus[2] = coding_scheme[dim3_scheme][sub_stimulus[2]]
-    print(f'[Check] sub{sub}, scheme stimulus {sub_stimulus}')
-    return sub_stimulus
+    conversion_ordering = []
+    stimulus2order_mapping = {
+        '000': 0, '001': 1, '010': 2, '011': 3,
+        '100': 4, '101': 5, '110': 6, '111': 7,
+    }
+    for dcnn_stimulus in ['000', '001', '010', '011', '100', '101', '110', '111']:
+        sub_stimulus = [i for i in dcnn_stimulus]
+        print(f'\n\n--------------------------------')
+        print(f'[Check] DCNN stimulus {sub_stimulus}')
+        
+        # assignment (flip three dims)
+        assignment_n_scheme = sub2assignment_n_scheme[sub]
+        new_stimulus_0 = sub_stimulus[assignment_n_scheme[0]-1]
+        new_stimulus_1 = sub_stimulus[assignment_n_scheme[1]-1]
+        new_stimulus_2 = sub_stimulus[assignment_n_scheme[2]-1]
+        sub_stimulus[0] = new_stimulus_0
+        sub_stimulus[1] = new_stimulus_1
+        sub_stimulus[2] = new_stimulus_2
+        # print(f'[Check] sub{sub}, assignment stimulus {sub_stimulus}')
+        
+        # scheme (flip binary codings)
+        dim1_scheme = assignment_n_scheme[3]
+        dim2_scheme = assignment_n_scheme[4]
+        dim3_scheme = assignment_n_scheme[5]
+        sub_stimulus[0] = coding_scheme[dim1_scheme][sub_stimulus[0]]
+        sub_stimulus[1] = coding_scheme[dim2_scheme][sub_stimulus[1]]
+        sub_stimulus[2] = coding_scheme[dim3_scheme][sub_stimulus[2]]
+        # print(f'[Check] sub{sub}, scheme stimulus {sub_stimulus}')
+        
+        conversion_ordering.append(
+            stimulus2order_mapping[
+                ''.join(sub_stimulus)
+            ]
+        )
+        
+    return np.array(conversion_ordering)
                     
     
 def prepare_events_table(sub, task, run, save_dir):
