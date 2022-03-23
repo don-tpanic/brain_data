@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from collections import defaultdict
 
 
 class Mappings(object):
@@ -146,7 +147,79 @@ def convert_dcnnCoding_to_subjectCoding(sub):
         
     return np.array(conversion_ordering)
                     
+                    
+def reorder_RDM_entries_into_chunks():
+    """
+    For each subject, the groud true label for each stimulus coding is different.
+    When visualising RDMs of conditions, we want to make sure that
+    rows and columns are grouped (in chunk) by their labels. This asks
+    for a mapping from each subject's stimulus coding to their labels in each
+    task.
     
+    Impl:
+    -----
+        We create a dictionary like:
+        
+        mapping = {sub1: 
+                    {task1: [orderOf(000), orderOf(001), ...], 
+                     task2: [orderOf(000), orderOf(001), ...], 
+                    ...
+        
+        Notice, within each task (across runs), the labels are the same so we can
+        simply use run1.
+        
+        Notice, there is one extra conversion inside to get the orderOf(..). 
+        That is, after we get a list of labels correspond to 000, 001, ..., 111, which look 
+        like [1, 2, 2, 1, 2, ...], we argsort them to get indices which we will return as 
+        `conversion_ordering` that is going to reorder the RDM entries into desired chunks.
+    
+    return:
+    -------
+        `mapping` explained above
+    """
+    mapping = defaultdict(lambda: defaultdict(list))
+    num_subs = 23
+    tasks = [1, 2, 3]
+    subs = [f'{i:02d}' for i in range(2, num_subs+1)]
+    stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
+    behaviour_path = f'Mack-Data/behaviour'
+    for sub in subs:
+        for task in tasks:
+            
+            behaviour = pd.read_csv(
+                f'{behaviour_path}/subject_{sub}/{sub}_study{task}_run1.txt', 
+                header=None
+            ).to_numpy()
+            
+            i = 0
+            temp_mapping = dict()
+            # search exactly all stimuli once and stop.
+            while len(temp_mapping.keys()) != len(stimuli):
+                behaviour_i = behaviour[i][0].split('\t')
+                stimulus = ''.join(behaviour_i[3:6])
+                # label = behaviour_i[7]  # 7 - true response (some missing)
+                label = behaviour_i[6]  # 6 - subj answer (later correct?)
+                # print(f'stimulus = {stimulus}, label = {label}')
+                temp_mapping[stimulus] = int(label)
+                i += 1
+            
+            # print(temp_mapping.keys())
+            # print(temp_mapping.values())
+            
+            # this is to reorder the stimuli as 000, 001, ..., 111
+            # so the corresponding list of labels match the order.
+            labels = []
+            for stimulus in stimuli:
+                labels.append(temp_mapping[stimulus])
+                
+            # sort the labels and get indices in asc order
+            grouped_labels_indices = np.argsort(labels)
+            mapping[sub][task].extend(grouped_labels_indices)
+
+    # mapping[sub][task] = a list of indices that will be used to sort the RDM entries.
+    return mapping
+    
+                             
 def prepare_events_table(sub, task, run, save_dir):
     """
     Given a subject, task and run, produce a 
@@ -230,4 +303,9 @@ def prepare_motion_correction_params(sub, task, run, save_dir):
 
          
 if __name__ == '__main__':
-    convert_dcnnCoding_to_subjectCoding(dcnn_stimulus='101', sub='23')
+    # convert_dcnnCoding_to_subjectCoding(dcnn_stimulus='101', sub='23')
+    
+    mapping = reorder_RDM_entries_into_chunks()
+    print(mapping['02'][1])
+    print(mapping['03'][2])
+    
