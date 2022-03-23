@@ -2,6 +2,8 @@ import os
 import numpy as np
 from subprocess import call
 import matplotlib.pyplot as plt
+from matplotlib import colorbar, colors
+from matplotlib.colors import ListedColormap
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import euclidean_distances
 
@@ -10,7 +12,7 @@ import nilearn as nl
 import nipype.interfaces.ants as ants
 from nipype.interfaces.fsl import MultiImageMaths
 from nilearn.masking import apply_mask
-from nilearn.plotting import plot_glass_brain, plot_stat_map
+from nilearn import plotting, image
 
 from utils import convert_dcnnCoding_to_subjectCoding
 
@@ -192,26 +194,50 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     print(f'[Check] Saved RDM: {save_path}')
     
 
-def visualize_mask(sub, roi, maskROI, smooth, threshold=0.00005):
+def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
     """
-    Given a final roi mask, visualize as an
-    activation plot with `plot_glass_brain`
+
     """
     T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
 
-    fig, ax = plt.subplots()
-    plot_stat_map(
-        maskROI, 
-        colorbar=True, 
-        threshold=threshold, 
-        bg_img=T1_path,
-        title=f'roi: {roi}',
-        axes=ax
+    fig, (img_ax, cbar_ax) = plt.subplots(
+        1,
+        2,
+        gridspec_kw={"width_ratios": [10.0, 0.1], "wspace": 0.0},
+        figsize=(10, 2),
     )
     
-    ax.set_title(f'smooth = {smooth}')
-    print(f'[Check] Saved roiMask_{roi}_smooth={smooth}.png')
-    plt.savefig(f'roiMask_{roi}_smooth={smooth}.png')
+    combined_mask = maskROIs[0].dataobj
+    for maskROI in maskROIs[1:]:
+        combined_mask += maskROI.dataobj
+    combined_mask = image.new_img_like(maskROIs[0], combined_mask)
+    
+    cmap = ListedColormap(['red', 'green', 'blue', 'yellow', 'white'])
+    
+    plotting.plot_roi(
+        combined_mask,
+        colorbar=False, 
+        threshold=threshold, 
+        bg_img=T1_path,
+        title=f'',
+        axes=img_ax,
+        cmap=cmap, 
+    )
+    
+    norm = colors.Normalize(vmin=0, vmax=len(maskROIs))
+    cbar = colorbar.ColorbarBase(
+        cbar_ax,
+        ticks=[0.5, 1.5, 2.5, 3.5, 4.5],
+        norm=norm,
+        orientation="vertical",
+        cmap=cmap,
+        spacing="proportional",
+    )
+    cbar_ax.set_yticklabels(['V1', 'V2', 'V3', 'V4', 'LOC'])
+        
+    img_ax.set_title(f'smooth = {smooth}')
+    print(f'[Check] Saved roiMask_smooth={smooth}.png')
+    plt.savefig(f'roiMask_smooth={smooth}.png')
     plt.close()
 
 
@@ -221,6 +247,8 @@ def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
     2. `applyMask`: extract beta weights within a ROI
     3. `compute_RDM`: save RDM
     """
+    maskROIs = []
+    
     for roi in rois:
         
         # Only if masks already in MNI
@@ -249,14 +277,7 @@ def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
                         )
                         
                         # visualize masks as a check
-                        if visualize:
-                            visualize_mask(
-                                sub=sub, 
-                                roi=roi, 
-                                maskROI=maskROI, 
-                                smooth=smooth
-                            )
-                            # exit()
+                        maskROIs.append(maskROI)
                         
                     #     beta_weights_masked.append(fmri_masked)
                     
@@ -273,13 +294,21 @@ def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
                     #         distance=distance
                     #     )
                     
+    if visualize:
+        visualize_mask(
+            sub=sub, 
+            rois=rois, 
+            maskROIs=maskROIs, 
+            smooth=smooth
+        )
+                    
                     
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
     roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
     rdm_path = 'RDMs'
-    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC']
+    rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
     num_subs = 2
     num_conditions = 1
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
