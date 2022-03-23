@@ -18,31 +18,96 @@ from utils import convert_dcnnCoding_to_subjectCoding
 Extract ROI-level beta weights and compile into RDMs.
 """
 
+
+# def transform_mask_T1_to_MNI():
+#     """
+#     Given a subject and a ROI,
+#     transform the ROI mask from subject's T1 to MNI space.
+    
+#     This function is used specifically for transforming BOLD5000
+#     ROI masks to MNI space so they could be further merged in 
+#     `merge_n_smooth_mask`
+#     """
+#     for sub in ['CSI1', 'CSI2', 'CSI3', 'CSI4']:
+        
+
+# def merge_n_smooth_mask(roi, smooth):
+#     """
+#     First processing of the standard ROI masks is to
+#     merge some left&right masks and smooth them.
+#     """
+#     if roi == 'LOC':
+#         maths = MultiImageMaths()
+#         maths.inputs.in_file = f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-LH{roi}.nii.gz"
+#         # maths.inputs.op_string = f"-add %s -s {smooth} -bin "
+#         maths.inputs.op_string = f"-add %s -add %s -add %s -add %s -add %s -add %s -add %s -s {smooth} -bin "
+
+#         # TODO: how to add multiple?
+        
+#         maths.inputs.operand_files = [
+#             f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-RH{roi}.nii.gz", 
+#             f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-RH{roi}.nii.gz",
+#             f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-RH{roi}.nii.gz",
+#             f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-RH{roi}.nii.gz",
+#         ]
+#         maths.inputs.out_file = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
+#         runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
+#         print(runCmd)
+#         call(runCmd, shell=True)
+
+
+def run_ants_command(roi, roi_nums, smooth):
+    """
+    Helper function that automatically grabs files to prepare 
+    for the final ants command.
+    """
+    maths = MultiImageMaths()
+    
+    all_files = []
+    for roi_num in roi_nums:
+        all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_lh.nii.gz')
+        all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_rh.nii.gz')
+    
+    maths.inputs.op_string = ''
+    for _ in range(len(roi_nums) * 2 - 1):
+        maths.inputs.op_string += '-add %s '
+        
+    maths.inputs.op_string += '-bin '
+    if smooth:
+        maths.inputs.op_string += f'-s {smooth}'
+    
+    maths.inputs.in_file = all_files[0]
+    maths.inputs.operand_files = all_files[1:]
+    maths.inputs.out_file = f'{roi_path}/mask-{roi}.nii.gz'
+    runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
+    print(f'runCmd = {runCmd}')
+    call(runCmd, shell=True)
+    
+
 def merge_n_smooth_mask(roi, smooth):
     """
     First processing of the standard ROI masks is to
     merge some left&right masks and smooth them.
     """
-    if roi == 'LOC':
-        maths = MultiImageMaths()
-        maths.inputs.in_file = f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-LH{roi}.nii.gz"
-        maths.inputs.op_string = f"-add %s -s {smooth} -bin "
-        maths.inputs.operand_files = [
-            f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-RH{roi}.nii.gz", 
-            # f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-RH{roi}.nii.gz",
-            # f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-RH{roi}.nii.gz",
-            # f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-RH{roi}.nii.gz",
-        ]
-        maths.inputs.out_file = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
-        runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
-        print(runCmd)
-        call(runCmd, shell=True)
+    roi_number_mapping = {
+        'V1': [1, 2],
+        'V2': [3, 4],
+        'V3': [5, 6],
+        'V4': [7],
+        'V1-3': [1, 2, 3, 4, 5, 6],
+        'LOC': [14, 15]
+    }
+    roi_nums = roi_number_mapping[roi]
+    run_ants_command(roi=roi, roi_nums=roi_nums, smooth=smooth)
         
     
 def transform_mask_MNI_to_T1(sub, roi):
     """
     Given a subject and a ROI, 
     transform ROI mask from MNI space to subject's T1 space.
+    
+    This is based on the fact that the ROI masks provided are already
+    in standard MNI space.
     """
     print(f'[Check] transform roi mask to subject{sub} T1 space')
     at = ants.ApplyTransforms()
@@ -53,9 +118,9 @@ def transform_mask_MNI_to_T1(sub, roi):
     assert os.path.exists(transform_path)
     
     at.inputs.dimension = 3
-    at.inputs.input_image = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
+    at.inputs.input_image = f'{roi_path}/mask-{roi}.nii.gz'
     at.inputs.reference_image = f'{reference_image_path}/sub-{sub}_T1w.nii.gz'
-    at.inputs.output_image = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
+    at.inputs.output_image = f'{roi_path}/mask-{roi}_T1.nii.gz'
     at.inputs.interpolation = 'NearestNeighbor'
     at.inputs.default_value = 0
     at.inputs.transforms = [f'{transform_path}/sub-{sub}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5']
@@ -80,8 +145,10 @@ def applyMask(
     print(f'[Check] beta weight file: {data_path}')
     
     # TODO: change ROI dir
+    # maskROI = nb.load(
+    #     f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
     maskROI = nb.load(
-        f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
+        f'{roi_path}/mask-{roi}_T1.nii.gz'
     )
     maskROI = nl.image.resample_img(
         maskROI, 
@@ -125,7 +192,7 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     print(f'[Check] Saved RDM: {save_path}')
     
 
-def visualize_mask(sub, roi, maskROI, threshold=0.00005):
+def visualize_mask(sub, roi, maskROI, smooth, threshold=0.00005):
     """
     Given a final roi mask, visualize as an
     activation plot with `plot_glass_brain`
@@ -142,27 +209,33 @@ def visualize_mask(sub, roi, maskROI, threshold=0.00005):
         axes=ax
     )
     
-    print(f'[Check] Saved viz.')
-    plt.savefig(f'roiMask.png')
+    ax.set_title(f'smooth = {smooth}')
+    print(f'[Check] Saved roiMask_{roi}_smooth={smooth}.png')
+    plt.savefig(f'roiMask_{roi}_smooth={smooth}.png')
     plt.close()
 
 
-def execute(rois, subs, tasks, runs, conditions, visualize=False):
+def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
     """
     1. `transform`: Transform mask to T1 space
     2. `applyMask`: extract beta weights within a ROI
     3. `compute_RDM`: save RDM
     """
     for roi in rois:
+        
+        # Only if masks already in MNI
+        merge_n_smooth_mask(roi=roi, smooth=smooth)
+        
         for sub in subs:
             
-            # TODO: somewhere here ROI needs a mapping due to naming.
-            transform_mask_MNI_to_T1(sub=sub, roi=roi)  # get subject-specific roi mask
+            # Only if masks already in MNI
+            transform_mask_MNI_to_T1(sub=sub, roi=roi)
             
             for task in tasks:
+                
                 for run in runs:
-                    beta_weights_masked = []
                     
+                    beta_weights_masked = []
                     for condition in conditions:
                         # given beta weights from a task & run & condition 
                         # apply the transformed mask
@@ -177,42 +250,43 @@ def execute(rois, subs, tasks, runs, conditions, visualize=False):
                         
                         # visualize masks as a check
                         if visualize:
-                            visualize_mask(sub, roi, maskROI)
-                            exit()
+                            visualize_mask(
+                                sub=sub, 
+                                roi=roi, 
+                                maskROI=maskROI, 
+                                smooth=smooth
+                            )
+                            # exit()
                         
-                        beta_weights_masked.append(fmri_masked)
+                    #     beta_weights_masked.append(fmri_masked)
                     
-                    beta_weights_masked = np.array(beta_weights_masked)
-                    print(f'beta_weights_masked.shape = {beta_weights_masked.shape}')
+                    # beta_weights_masked = np.array(beta_weights_masked)
+                    # print(f'beta_weights_masked.shape = {beta_weights_masked.shape}')
                     
-                    for distance in distances:
-                        compute_RDM(
-                            embedding_mtx=beta_weights_masked, 
-                            sub=sub, 
-                            task=task, 
-                            run=run, 
-                            roi=roi, 
-                            distance=distance
-                        )
+                    # for distance in distances:
+                    #     compute_RDM(
+                    #         embedding_mtx=beta_weights_masked, 
+                    #         sub=sub, 
+                    #         task=task, 
+                    #         run=run, 
+                    #         roi=roi, 
+                    #         distance=distance
+                    #     )
                     
                     
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
-    roi_path = 'ROIs'
+    roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
     rdm_path = 'RDMs'
-    rois = ['LOC']
-    num_subs = 23
-    num_conditions = 8
+    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC']
+    num_subs = 2
+    num_conditions = 1
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
-    
     tasks = [1]
     runs = [1]
-    
     distances = ['euclidean']
-    
-    merge_n_smooth_mask(roi='LOC', smooth=0.2)
     
     execute(
         rois=rois, 
@@ -220,6 +294,7 @@ if __name__ == '__main__':
         tasks=tasks, 
         runs=runs, 
         conditions=conditions,
+        smooth=None,
         visualize=True
     )
     
