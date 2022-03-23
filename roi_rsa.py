@@ -29,21 +29,42 @@ def run_ants_command(roi, roi_nums, smooth):
     """
     maths = MultiImageMaths()
     
-    all_files = []
-    for roi_num in roi_nums:
-        all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_lh.nii.gz')
-        all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_rh.nii.gz')
-    
-    maths.inputs.op_string = ''
-    for _ in range(len(roi_nums) * 2 - 1):
-        maths.inputs.op_string += '-add %s '
+    if roi_nums is not None:
+        all_files = []
+        for roi_num in roi_nums:
+            all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_lh.nii.gz')
+            all_files.append(f'{roi_path}/perc_VTPM_vol_roi{roi_num}_rh.nii.gz')
         
-    if smooth:
-        maths.inputs.op_string += f'-s {smooth}'
-    maths.inputs.op_string += ' -bin '
+        maths.inputs.op_string = ''
+        for _ in range(len(roi_nums) * 2 - 1):
+            maths.inputs.op_string += '-add %s '
+            
+        if smooth:
+            maths.inputs.op_string += f'-s {smooth}'
+        maths.inputs.op_string += ' -bin '
+        
+        maths.inputs.in_file = all_files[0]
+        maths.inputs.operand_files = all_files[1:]
     
-    maths.inputs.in_file = all_files[0]
-    maths.inputs.operand_files = all_files[1:]
+    # HPC
+    else:
+        if 'LH' in roi:
+            h = 'l'
+        else:
+            h = 'r'
+                        
+        maths.inputs.in_file = f'{roi_path}/HIPP_BODY_{h}h.nii.gz'
+        maths.inputs.op_string = '-add %s -add %s -add %s ' 
+        if smooth:
+            maths.inputs.op_string += f'-s {smooth}'
+        maths.inputs.op_string += ' -bin '
+        
+        maths.inputs.operand_files = [
+            f'{roi_path}/HIPP_BODY_{h}h.nii.gz',
+            f'{roi_path}/HIPP_HEAD_{h}h.nii.gz',
+            f'{roi_path}/HIPP_TAIL_{h}h.nii.gz'
+        ]
+        
     maths.inputs.out_file = f'{roi_path}/mask-{roi}.nii.gz'
     runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
     print(f'runCmd = {runCmd}')
@@ -55,15 +76,20 @@ def merge_n_smooth_mask(roi, smooth):
     First processing of the standard ROI masks is to
     merge some left&right masks and smooth them.
     """
-    roi_number_mapping = {
-        'V1': [1, 2],
-        'V2': [3, 4],
-        'V3': [5, 6],
-        'V4': [7],
-        'V1-3': [1, 2, 3, 4, 5, 6],
-        'LOC': [14, 15]
-    }
-    roi_nums = roi_number_mapping[roi]
+    if 'HPC' not in roi:
+        roi_number_mapping = {
+            'V1': [1, 2],
+            'V2': [3, 4],
+            'V3': [5, 6],
+            'V4': [7],
+            'V1-3': [1, 2, 3, 4, 5, 6],
+            'LOC': [14, 15]
+        }
+        roi_nums = roi_number_mapping[roi]
+    
+    else:
+        roi_nums = None
+    
     run_ants_command(roi=roi, roi_nums=roi_nums, smooth=smooth)
         
     
@@ -105,8 +131,14 @@ def applyMask(
         per (ROI, subject, task, run, condition) beta weights
     """
     output_path = f'output_run_{run}_sub_{sub}_task_{task}'
-    data_path = f'{root_path}/{glm_path}/work_1st/{output_path}/datasink/' \
-        f'{glm_path}/datasink/model/{output_path}/{dataType}_{condition}.nii'
+    
+    if dataType == 'beta':
+        data_path = f'{root_path}/{glm_path}/work_1st/{output_path}/datasink/' \
+            f'{glm_path}/datasink/model/{output_path}/{dataType}_{condition}.nii'
+    elif dataType == 'spmT':
+        data_path = f'{root_path}/{glm_path}/work_1st/{output_path}/datasink/' \
+            f'{glm_path}/datasink/1stLevel/{output_path}/{dataType}_{condition}.nii'
+    
     imgs = nb.load(data_path)
     print(f'[Check] beta weight file: {data_path}')
     
@@ -142,7 +174,8 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     # DCNN coding which has fixed and unique meaning.
     conversion_ordering = convert_dcnnCoding_to_subjectCoding(sub)
     # reorder both cols and rows based on ordering.
-    RDM = RDM[conversion_ordering, :][:, conversion_ordering]    
+    # RDM = RDM[conversion_ordering, :][:, conversion_ordering]
+    # FIXME: how to reorder when viz?  
     # RDM = RDM[np.triu_indices(RDM.shape[0])]
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
@@ -201,7 +234,7 @@ def visualize_RDM(RDM, sub, task, run, roi, distance):
     fig, ax = plt.subplots()
     plt.imshow(RDM, cmap='hot', interpolation='nearest')
     plt.savefig(
-        f'sub-{sub}_task-{task}_run-{run}_roi-{roi}_distance-{distance}.png'
+        f'RDMs/sub-{sub}_task-{task}_run-{run}_roi-{roi}_distance-{distance}.png'
     )
 
 
@@ -214,7 +247,7 @@ def compute_RSA(RDM1, RDM2):
     return r
 
 
-def roi_execute(rois, subs, tasks, runs, conditions, smooth, visualize):
+def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, visualize):
     """
     1. `transform`: Transform mask to T1 space
     2. `applyMask`: extract beta weights within a ROI
@@ -224,6 +257,12 @@ def roi_execute(rois, subs, tasks, runs, conditions, smooth, visualize):
     
     for roi in rois:
         
+        global roi_path
+        if 'HPC' not in roi:
+            roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+        else:
+            roi_path = 'ROIs/HPC'
+
         # Only if masks already in MNI
         merge_n_smooth_mask(roi=roi, smooth=smooth)
         
@@ -245,7 +284,7 @@ def roi_execute(rois, subs, tasks, runs, conditions, smooth, visualize):
                             sub=sub, 
                             task=task, 
                             run=run, 
-                            dataType='beta', 
+                            dataType=dataType, 
                             condition=condition
                         )
                         
@@ -311,11 +350,10 @@ def rsa_execute(subs, tasks, runs, rois, distances, visualize):
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
-    roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
     rdm_path = 'RDMs'
     # rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
-    rois = ['V4']
-    num_subs = 2
+    rois = ['LHHPC']
+    num_subs = 4
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
@@ -328,6 +366,7 @@ if __name__ == '__main__':
         subs=subs, 
         tasks=tasks, 
         runs=runs, 
+        dataType='spmT',
         conditions=conditions,
         smooth=0.2,
         visualize=False
