@@ -20,44 +20,6 @@ from utils import convert_dcnnCoding_to_subjectCoding
 Extract ROI-level beta weights and compile into RDMs.
 """
 
-
-# def transform_mask_T1_to_MNI():
-#     """
-#     Given a subject and a ROI,
-#     transform the ROI mask from subject's T1 to MNI space.
-    
-#     This function is used specifically for transforming BOLD5000
-#     ROI masks to MNI space so they could be further merged in 
-#     `merge_n_smooth_mask`
-#     """
-#     for sub in ['CSI1', 'CSI2', 'CSI3', 'CSI4']:
-        
-
-# def merge_n_smooth_mask(roi, smooth):
-#     """
-#     First processing of the standard ROI masks is to
-#     merge some left&right masks and smooth them.
-#     """
-#     if roi == 'LOC':
-#         maths = MultiImageMaths()
-#         maths.inputs.in_file = f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-LH{roi}.nii.gz"
-#         # maths.inputs.op_string = f"-add %s -s {smooth} -bin "
-#         maths.inputs.op_string = f"-add %s -add %s -add %s -add %s -add %s -add %s -add %s -s {smooth} -bin "
-
-#         # TODO: how to add multiple?
-        
-#         maths.inputs.operand_files = [
-#             f"{roi_path}/derivatives_spm_sub-CSI1_sub-CSI1_mask-RH{roi}.nii.gz", 
-#             f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI2_sub-CSI2_mask-RH{roi}.nii.gz",
-#             f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI3_sub-CSI3_mask-RH{roi}.nii.gz",
-#             f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-LH{roi}.nii.gz", f"{roi_path}/derivatives_spm_sub-CSI4_sub-CSI4_mask-RH{roi}.nii.gz",
-#         ]
-#         maths.inputs.out_file = f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}.nii.gz'
-#         runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
-#         print(runCmd)
-#         call(runCmd, shell=True)
-
-
 def run_ants_command(roi, roi_nums, smooth):
     """
     Helper function that automatically grabs files to prepare 
@@ -74,9 +36,9 @@ def run_ants_command(roi, roi_nums, smooth):
     for _ in range(len(roi_nums) * 2 - 1):
         maths.inputs.op_string += '-add %s '
         
-    maths.inputs.op_string += '-bin '
     if smooth:
         maths.inputs.op_string += f'-s {smooth}'
+    maths.inputs.op_string += ' -bin '
     
     maths.inputs.in_file = all_files[0]
     maths.inputs.operand_files = all_files[1:]
@@ -146,9 +108,6 @@ def applyMask(
     imgs = nb.load(data_path)
     print(f'[Check] beta weight file: {data_path}')
     
-    # TODO: change ROI dir
-    # maskROI = nb.load(
-    #     f'{roi_path}/derivatives_spm_sub-CSI1_mask-{roi}_output.nii.gz'
     maskROI = nb.load(
         f'{roi_path}/mask-{roi}_T1.nii.gz'
     )
@@ -323,7 +282,7 @@ if __name__ == '__main__':
         tasks=tasks, 
         runs=runs, 
         conditions=conditions,
-        smooth=None,
+        smooth=0.2,
         visualize=True
     )
     
