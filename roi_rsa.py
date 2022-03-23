@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import scipy.stats as stats
 from subprocess import call
 import matplotlib.pyplot as plt
 from matplotlib import colorbar, colors
@@ -17,7 +18,8 @@ from nilearn import plotting, image
 from utils import convert_dcnnCoding_to_subjectCoding
 
 """
-Extract ROI-level beta weights and compile into RDMs.
+1. Extract ROI-level beta weights and compile into RDMs.
+2. Perform RSA
 """
 
 def run_ants_command(roi, roi_nums, smooth):
@@ -140,13 +142,8 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     # DCNN coding which has fixed and unique meaning.
     conversion_ordering = convert_dcnnCoding_to_subjectCoding(sub)
     # reorder both cols and rows based on ordering.
-    # TODO: double check correctness.
-    RDM = RDM[conversion_ordering, :][:, conversion_ordering]
-    
-    exit()
-    
-    RDM = RDM[np.triu_indices(RDM.shape[0])]
-    
+    RDM = RDM[conversion_ordering, :][:, conversion_ordering]    
+    # RDM = RDM[np.triu_indices(RDM.shape[0])]
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
     print(f'[Check] RDM shape = {RDM.shape}')
@@ -200,7 +197,24 @@ def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
     plt.close()
 
 
-def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
+def visualize_RDM(RDM, sub, task, run, roi, distance):
+    fig, ax = plt.subplots()
+    plt.imshow(RDM, cmap='hot', interpolation='nearest')
+    plt.savefig(
+        f'sub-{sub}_task-{task}_run-{run}_roi-{roi}_distance-{distance}.png'
+    )
+
+
+def compute_RSA(RDM1, RDM2):
+    """
+    RSA between a subject pairs given (task, run, roi, distance)
+    """
+    r, _ = stats.spearmanr(RDM1, RDM2)
+    print(r)
+    return r
+
+
+def roi_execute(rois, subs, tasks, runs, conditions, smooth, visualize):
     """
     1. `transform`: Transform mask to T1 space
     2. `applyMask`: extract beta weights within a ROI
@@ -238,20 +252,20 @@ def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
                         # visualize masks as a check
                         maskROIs.append(maskROI)
                         
-                    #     beta_weights_masked.append(fmri_masked)
+                        beta_weights_masked.append(fmri_masked)
                     
-                    # beta_weights_masked = np.array(beta_weights_masked)
-                    # print(f'beta_weights_masked.shape = {beta_weights_masked.shape}')
+                    beta_weights_masked = np.array(beta_weights_masked)
+                    print(f'beta_weights_masked.shape = {beta_weights_masked.shape}')
                     
-                    # for distance in distances:
-                    #     compute_RDM(
-                    #         embedding_mtx=beta_weights_masked, 
-                    #         sub=sub, 
-                    #         task=task, 
-                    #         run=run, 
-                    #         roi=roi, 
-                    #         distance=distance
-                    #     )
+                    for distance in distances:
+                        compute_RDM(
+                            embedding_mtx=beta_weights_masked, 
+                            sub=sub, 
+                            task=task, 
+                            run=run, 
+                            roi=roi, 
+                            distance=distance
+                        )
                     
     if visualize:
         visualize_mask(
@@ -261,28 +275,70 @@ def execute(rois, subs, tasks, runs, conditions, smooth, visualize):
             smooth=smooth
         )
                     
+
+def rsa_execute(subs, tasks, runs, rois, distances, visualize):
+    for roi in rois:
+        for task in tasks:
+            for run in runs:
+                for distance in distances:
+                    
+                    RDMs = []
+                    for sub in subs:
+                        RDM = np.load(
+                           f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+                        )
+                        
+                        if visualize:
+                            visualize_RDM(
+                                RDM=RDM, 
+                                sub=sub, 
+                                task=task, 
+                                run=run, 
+                                roi=roi, 
+                                distance=distance
+                            )
+                        
+                    # RDMs.append(RDM)
+                    # # compute correlation between pairs of subjects
+                    # for i in range(len(subs)):
+                    #     for j in range(len(subs)):
+                    #         if i >= j:
+                    #             continue
+                    #         else:
+                    #             r = compute_RSA(RDMs[i], RDMs[j])
+
                     
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
     roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
     rdm_path = 'RDMs'
-    rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
+    # rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
+    rois = ['V4']
     num_subs = 2
-    num_conditions = 1
+    num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
-    tasks = [1]
-    runs = [1]
+    tasks = [2]
+    runs = [1, 2, 3, 4]
     distances = ['euclidean']
     
-    execute(
+    roi_execute(
         rois=rois, 
         subs=subs, 
         tasks=tasks, 
         runs=runs, 
         conditions=conditions,
         smooth=0.2,
+        visualize=False
+    )
+    
+    rsa_execute(
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        rois=rois, 
+        distances=distances,
         visualize=True
     )
     
