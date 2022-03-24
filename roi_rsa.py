@@ -22,7 +22,7 @@ from utils import convert_dcnnCoding_to_subjectCoding, reorder_RDM_entries_into_
 2. Perform RSA
 """
 
-def run_ants_command(roi, roi_nums, smooth):
+def run_ants_command(roi, roi_nums, smooth_mask):
     """
     Helper function that automatically grabs files to prepare 
     for the final ants command.
@@ -39,8 +39,8 @@ def run_ants_command(roi, roi_nums, smooth):
         for _ in range(len(roi_nums) * 2 - 1):
             maths.inputs.op_string += '-add %s '
             
-        if smooth:
-            maths.inputs.op_string += f'-s {smooth}'
+        if smooth_mask:
+            maths.inputs.op_string += f'-s {smooth_mask}'
         maths.inputs.op_string += ' -bin '
         
         maths.inputs.in_file = all_files[0]
@@ -71,26 +71,32 @@ def run_ants_command(roi, roi_nums, smooth):
     call(runCmd, shell=True)
     
 
-def merge_n_smooth_mask(roi, smooth):
+def merge_n_smooth_mask(roi, smooth_mask):
     """
     First processing of the standard ROI masks is to
     merge some left&right masks and smooth them.
     """
-    if 'HPC' not in roi:
-        roi_number_mapping = {
-            'V1': [1, 2],
-            'V2': [3, 4],
-            'V3': [5, 6],
-            'V4': [7],
-            'V1-3': [1, 2, 3, 4, 5, 6],
-            'LOC': [14, 15]
-        }
-        roi_nums = roi_number_mapping[roi]
+    print(f'[Check] running `merge_n_smooth_mask`')
+    if not os.path.exists(f'{roi_path}/mask-{roi}_T1.nii.gz'):
+
+        if 'HPC' not in roi:
+            roi_number_mapping = {
+                'V1': [1, 2],
+                'V2': [3, 4],
+                'V3': [5, 6],
+                'V4': [7],
+                'V1-3': [1, 2, 3, 4, 5, 6],
+                'LOC': [14, 15]
+            }
+            roi_nums = roi_number_mapping[roi]
+        
+        else:
+            roi_nums = None
+        
+        run_ants_command(roi=roi, roi_nums=roi_nums, smooth_mask=smooth_mask)
     
     else:
-        roi_nums = None
-    
-    run_ants_command(roi=roi, roi_nums=roi_nums, smooth=smooth)
+        print('[Check] Already done, skip')
         
     
 def transform_mask_MNI_to_T1(sub, roi):
@@ -101,28 +107,32 @@ def transform_mask_MNI_to_T1(sub, roi):
     This is based on the fact that the ROI masks provided are already
     in standard MNI space.
     """
-    print(f'[Check] transform roi mask to subject{sub} T1 space')
-    at = ants.ApplyTransforms()
-    
-    reference_image_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat'
-    transform_path = f'{root_path}/Mack-Data/derivatives/sub-{sub}/anat'
-    assert os.path.exists(reference_image_path)
-    assert os.path.exists(transform_path)
-    
-    at.inputs.dimension = 3
-    at.inputs.input_image = f'{roi_path}/mask-{roi}.nii.gz'
-    at.inputs.reference_image = f'{reference_image_path}/sub-{sub}_T1w.nii.gz'
-    at.inputs.output_image = f'{roi_path}/mask-{roi}_T1.nii.gz'
-    at.inputs.interpolation = 'NearestNeighbor'
-    at.inputs.default_value = 0
-    at.inputs.transforms = [f'{transform_path}/sub-{sub}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5']
-    at.inputs.invert_transform_flags = [False]
-    runCmd = at.cmdline
-    call(runCmd, shell=True)
+    print(f'[Check] running `transform_mask_MNI_to_T1`')
+    if not os.path.exists(f'{roi_path}/mask-{roi}_T1.nii.gz'):
+        print(f'[Check] transform roi mask to subject{sub} T1 space')
+        at = ants.ApplyTransforms()
+        
+        reference_image_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat'
+        transform_path = f'{root_path}/Mack-Data/derivatives/sub-{sub}/anat'
+        assert os.path.exists(reference_image_path)
+        assert os.path.exists(transform_path)
+        
+        at.inputs.dimension = 3
+        at.inputs.input_image = f'{roi_path}/mask-{roi}.nii.gz'
+        at.inputs.reference_image = f'{reference_image_path}/sub-{sub}_T1w.nii.gz'
+        at.inputs.output_image = f'{roi_path}/mask-{roi}_T1.nii.gz'
+        at.inputs.interpolation = 'NearestNeighbor'
+        at.inputs.default_value = 0
+        at.inputs.transforms = [f'{transform_path}/sub-{sub}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5']
+        at.inputs.invert_transform_flags = [False]
+        runCmd = at.cmdline
+        call(runCmd, shell=True)
+    else:
+        print('[Check] Already done, skip')
      
 
 def applyMask(
-        roi, sub, task, run, dataType='beta', condition='0001'):
+        roi, sub, task, run, dataType, condition, smooth_beta):
     """
     Apply ROI mask (T1 space) to subject's whole brain beta weights.
     
@@ -153,7 +163,7 @@ def applyMask(
     )
     # print('maskROI.shape = ', maskROI.shape)
     fmri_masked = apply_mask(
-        imgs, maskROI, smoothing_fwhm=None
+        imgs, maskROI, smoothing_fwhm=smooth_beta
     )
     # print(fmri_masked.shape)  # per ROI & subject & condition beta weights
     return roi, maskROI, fmri_masked
@@ -181,8 +191,8 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     # conversion_ordering = convert_dcnnCoding_to_subjectCoding(sub)
     
     # TODO: for viz, should use this mapping instead?
-    conversion_ordering = reorder_RDM_entries_into_chunks()[sub][task]
-    print(f'[Check] conversion_ordering={conversion_ordering}')
+    conversion_ordering = reorder_mapper[sub][task]
+    print(f'[Check] sub{sub}, task{task}, conversion_ordering={conversion_ordering}')
     
     # reorder both cols and rows based on ordering.
     RDM = RDM[conversion_ordering, :][:, conversion_ordering]
@@ -190,7 +200,7 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
-    print(f'[Check] RDM shape = {RDM.shape}')
+    # print(f'[Check] RDM shape = {RDM.shape}')
     print(f'[Check] Saved RDM: {save_path}')
     return RDM
     
@@ -242,26 +252,48 @@ def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
     plt.close()
 
 
-def visualize_RSM(RDM, sub, task, run, roi, distance):
+def visualize_RDM(subs, roi, problem_type, distance):
     """
     Visualize RSM instead of RDM due to that's what was done in
     Mack et al.
+    
+    Will average over later runs like Mack et al.
     """
-    RSM = np.ones((RDM.shape[0], RDM.shape[0])) - RDM
+    runs = [3, 4]
+    RDM_sum = np.zeros((8, 8))
+    for sub in subs:
+        for run in runs:
+
+            # even sub: Type1 is task2
+            if int(sub) % 2 == 0:
+                if problem_type == 1:
+                    task = 2
+            # odd sub: Type1 is task3
+            else:
+                if problem_type == 1:
+                    task = 3
+                    
+            RDM = np.load(
+                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+            )
+            RDM_sum += RDM
+    
+    RDM_avg = RDM_sum / (len(subs) * len(runs))
     
     fig, ax = plt.subplots()
-    for i in range(RSM.shape[0]):
-        for j in range(RSM.shape[0]):
+    for i in range(RDM_avg.shape[0]):
+        for j in range(RDM_avg.shape[0]):
             text = ax.text(
-                j, i, np.round(RSM[i, j], 1),
+                j, i, np.round(RDM_avg[i, j], 1),
                 ha="center", va="center", color="w"
             )
     
-    ax.set_title(f'distance = {distance}')
-    plt.imshow(RSM)
+    ax.set_title(f'distance: {distance}')
+    plt.imshow(RDM_avg)
     plt.savefig(
-        f'RDMs/sub-{sub}_task-{task}_run-{run}_roi-{roi}_distance-{distance}.png'
+        f'RDMs/average_problem_type-{problem_type}_roi-{roi}_distance-{distance}.png'
     )
+    print(f'[Check] plotted.')
 
 
 def compute_RSA(RDM1, RDM2):
@@ -273,7 +305,7 @@ def compute_RSA(RDM1, RDM2):
     return r
 
 
-def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask, viz_RSM):
+def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth_mask, smooth_beta):
     """
     This is a top-level execution routine that does the following in order:
     1. `merge_n_smooth_mask`: 
@@ -293,18 +325,19 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask,
     4. `compute_RDM`
         - convert all stimuli beta weights (i.e. embedding matrix) into 
             RDM based on provided distance metric.
-        - notice RDM entries need reordered.
-        - optionally, RDMs can be plotted as heatmaps.
+        - notice RDM entries need somehow reordered.
     """
     maskROIs = []
     
     for roi in rois:
+        
         global roi_path
         if 'HPC' not in roi:
             roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         else:
             roi_path = 'ROIs/HPC'
-        merge_n_smooth_mask(roi=roi, smooth=smooth)
+
+        merge_n_smooth_mask(roi=roi, smooth_mask=smooth_mask)
         
         for sub in subs:
             transform_mask_MNI_to_T1(sub=sub, roi=roi)
@@ -321,15 +354,15 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask,
                             task=task, 
                             run=run, 
                             dataType=dataType, 
-                            condition=condition
+                            condition=condition,
+                            smooth_beta=smooth_beta
                         )
                         
                         # visualize masks as a check
                         maskROIs.append(maskROI)
                         beta_weights_masked.append(fmri_masked)
                     beta_weights_masked = np.array(beta_weights_masked)
-                    print(f'beta_weights_masked.shape = {beta_weights_masked.shape}')
-                    print(f'[Check] End of sub{sub}, task{task}, run{run}')
+                    print(f'[Check] beta_weights_masked.shape = {beta_weights_masked.shape}')
                     
                     for distance in distances:
                         RDM = compute_RDM(
@@ -340,16 +373,9 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask,
                             roi=roi, 
                             distance=distance
                         )
-                        if viz_RSM:
-                            visualize_RSM(
-                                RDM=RDM, 
-                                sub=sub, 
-                                task=task, 
-                                run=run, 
-                                roi=roi, 
-                                distance=distance
-                            )
-                                    
+                        
+            print(f'[Check] End of sub{sub}, task{task}, run{run}\n\n')
+                                                            
 
 def rsa_execute(subs, tasks, runs, rois, distances):
     for roi in rois:
@@ -378,14 +404,16 @@ if __name__ == '__main__':
     glm_path = 'glm'
     rdm_path = 'RDMs'
     # rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
-    rois = ['LHHPC', 'RHHPC']
+    rois = ['LHHPC']
     num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [2, 3]
-    runs = [4]
+    runs = [3, 4]
     distances = ['pearson']
+    
+    reorder_mapper = reorder_RDM_entries_into_chunks()
     
     roi_execute(
         rois=rois, 
@@ -394,18 +422,14 @@ if __name__ == '__main__':
         runs=runs, 
         dataType='beta',
         conditions=conditions,
-        smooth=0.2,
-        viz_mask=False,
-        viz_RSM=True
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2
     )
     
-    # rsa_execute(
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     rois=rois, 
-    #     distances=distances,
-    #     visualize=True
-    # )
-    
-    
+    # visualize_RDM(
+    #     subs=subs,
+    #     roi='LHHPC',
+    #     problem_type=1,
+    #     distance='pearson'
+    # )           
