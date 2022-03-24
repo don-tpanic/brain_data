@@ -202,6 +202,7 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     np.save(save_path, RDM)
     # print(f'[Check] RDM shape = {RDM.shape}')
     print(f'[Check] Saved RDM: {save_path}')
+    assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
     return RDM
     
 
