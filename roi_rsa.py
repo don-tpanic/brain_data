@@ -242,9 +242,23 @@ def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
     plt.close()
 
 
-def visualize_RDM(RDM, sub, task, run, roi, distance):
+def visualize_RSM(RDM, sub, task, run, roi, distance):
+    """
+    Visualize RSM instead of RDM due to that's what was done in
+    Mack et al.
+    """
+    RSM = np.ones((RDM.shape[0], RDM.shape[0])) - RDM
+    
     fig, ax = plt.subplots()
-    plt.imshow(RDM)
+    for i in range(RSM.shape[0]):
+        for j in range(RSM.shape[0]):
+            text = ax.text(
+                j, i, np.round(RSM[i, j], 1),
+                ha="center", va="center", color="w"
+            )
+    
+    ax.set_title(f'distance = {distance}')
+    plt.imshow(RSM)
     plt.savefig(
         f'RDMs/sub-{sub}_task-{task}_run-{run}_roi-{roi}_distance-{distance}.png'
     )
@@ -259,7 +273,7 @@ def compute_RSA(RDM1, RDM2):
     return r
 
 
-def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask, viz_RDM):
+def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask, viz_RSM):
     """
     This is a top-level execution routine that does the following in order:
     1. `merge_n_smooth_mask`: 
@@ -326,8 +340,8 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, smooth, viz_mask,
                             roi=roi, 
                             distance=distance
                         )
-                        if viz_RDM:
-                            visualize_RDM(
+                        if viz_RSM:
+                            visualize_RSM(
                                 RDM=RDM, 
                                 sub=sub, 
                                 task=task, 
@@ -365,12 +379,12 @@ if __name__ == '__main__':
     rdm_path = 'RDMs'
     # rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
     rois = ['LHHPC', 'RHHPC']
-    num_subs = 2
+    num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [2, 3]
-    runs = [1, 4]
+    runs = [4]
     distances = ['pearson']
     
     roi_execute(
@@ -382,7 +396,7 @@ if __name__ == '__main__':
         conditions=conditions,
         smooth=0.2,
         viz_mask=False,
-        viz_RDM=True
+        viz_RSM=True
     )
     
     # rsa_execute(
