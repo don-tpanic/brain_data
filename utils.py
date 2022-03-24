@@ -117,8 +117,8 @@ def convert_dcnnCoding_to_subjectCoding(sub):
     }
     for dcnn_stimulus in ['000', '001', '010', '011', '100', '101', '110', '111']:
         sub_stimulus = [i for i in dcnn_stimulus]
-        print(f'\n\n--------------------------------')
-        print(f'[Check] DCNN stimulus {sub_stimulus}')
+        # print(f'\n\n--------------------------------')
+        # print(f'[Check] DCNN stimulus {sub_stimulus}')
         
         # assignment (flip three dims)
         assignment_n_scheme = sub2assignment_n_scheme[sub]
