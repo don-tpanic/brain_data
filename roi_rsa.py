@@ -132,7 +132,8 @@ def transform_mask_MNI_to_T1(sub, roi):
      
 
 def applyMask(
-        roi, sub, task, run, dataType, condition, smooth_beta):
+        roi, sub, task, run, dataType, condition, smooth_beta
+    ):
     """
     Apply ROI mask (T1 space) to subject's whole brain beta weights.
     
@@ -169,7 +170,7 @@ def applyMask(
     return roi, maskROI, fmri_masked
 
 
-def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
+def compute_RDM(embedding_mtx, sub, task, run, roi, distance, smooth_beta):
     """
     Compute and save RDM of given beta weights and sort 
     the conditions based on specified ordering.
@@ -196,7 +197,6 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     
     # reorder both cols and rows based on ordering.
     RDM = RDM[conversion_ordering, :][:, conversion_ordering]
-    # RDM = RDM[np.triu_indices(RDM.shape[0])]
     
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
@@ -206,106 +206,17 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     return RDM
     
 
-def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
+def compute_RSA(RDM_1, RDM_2):
     """
-
+    Compute spearman correlation between 
+    two RDMs' upper trigular entries
     """
-    T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
-
-    fig, (img_ax, cbar_ax) = plt.subplots(
-        1,
-        2,
-        gridspec_kw={"width_ratios": [10.0, 0.1], "wspace": 0.0},
-        figsize=(10, 2),
-    )
+    RDM_1_triu = RDM_1[np.triu_indices(RDM_1.shape[0])]
+    RDM_2_triu = RDM_2[np.triu_indices(RDM_2.shape[0])]
+    rho, _ = stats.spearmanr(RDM_1_triu, RDM_2_triu)
+    return rho
     
-    combined_mask = maskROIs[0].dataobj
-    for maskROI in maskROIs[1:]:
-        combined_mask += maskROI.dataobj
-    combined_mask = image.new_img_like(maskROIs[0], combined_mask)
     
-    cmap = ListedColormap(['red', 'green', 'blue', 'yellow', 'white'])
-    
-    plotting.plot_roi(
-        combined_mask,
-        colorbar=False, 
-        threshold=threshold, 
-        bg_img=T1_path,
-        title=f'',
-        axes=img_ax,
-        cmap=cmap, 
-    )
-    
-    norm = colors.Normalize(vmin=0, vmax=len(maskROIs))
-    cbar = colorbar.ColorbarBase(
-        cbar_ax,
-        ticks=[0.5, 1.5, 2.5, 3.5, 4.5],
-        norm=norm,
-        orientation="vertical",
-        cmap=cmap,
-        spacing="proportional",
-    )
-    cbar_ax.set_yticklabels(['V1', 'V2', 'V3', 'V4', 'LOC'])
-        
-    img_ax.set_title(f'smooth = {smooth}')
-    print(f'[Check] Saved roiMask_smooth={smooth}.png')
-    plt.savefig(f'roiMask_smooth={smooth}.png')
-    plt.close()
-
-
-def visualize_RDM(subs, roi, problem_type, distance):
-    """
-    Visualize RSM instead of RDM due to that's what was done in
-    Mack et al.
-    
-    Will average over later runs like Mack et al.
-    """
-    runs = [3, 4]
-    RDM_sum = np.zeros((8, 8))
-    for sub in subs:
-        for run in runs:
-
-            # even sub: Type1 is task2
-            if int(sub) % 2 == 0:
-                if problem_type == 1:
-                    task = 2
-            # odd sub: Type1 is task3
-            else:
-                if problem_type == 1:
-                    task = 3
-                    
-            RDM = np.load(
-                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-            )
-            RDM_sum += RDM
-    
-    RDM_avg = RDM_sum / (len(subs) * len(runs))
-    
-    fig, ax = plt.subplots()
-    for i in range(RDM_avg.shape[0]):
-        for j in range(RDM_avg.shape[0]):
-            text = ax.text(
-                j, i, np.round(RDM_avg[i, j], 1),
-                ha="center", va="center", color="w"
-            )
-    
-    ax.set_title(f'distance: {distance}')
-    plt.imshow(RDM_avg)
-    plt.savefig(
-        f'RDMs/average_problem_type-{problem_type}_roi-{roi}_distance-{distance}.png'
-    )
-    print(f'[Check] plotted.')
-
-
-def compute_RSA(RDM1, RDM2):
-    """
-    RSA between a subject pairs given (task, run, roi, distance)
-    """
-    r, _ = stats.spearmanr(RDM1, RDM2)
-    print(r)
-    return r
-
-
 def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth_mask, smooth_beta):
     """
     This is a top-level execution routine that does the following in order:
@@ -399,7 +310,141 @@ def rsa_execute(subs, tasks, runs, rois, distances):
                             else:
                                 r = compute_RSA(RDMs[i], RDMs[j])
 
+
+def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
+    """
+
+    """
+    T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
+
+    fig, (img_ax, cbar_ax) = plt.subplots(
+        1,
+        2,
+        gridspec_kw={"width_ratios": [10.0, 0.1], "wspace": 0.0},
+        figsize=(10, 2),
+    )
+    
+    combined_mask = maskROIs[0].dataobj
+    for maskROI in maskROIs[1:]:
+        combined_mask += maskROI.dataobj
+    combined_mask = image.new_img_like(maskROIs[0], combined_mask)
+    
+    cmap = ListedColormap(['red', 'green', 'blue', 'yellow', 'white'])
+    
+    plotting.plot_roi(
+        combined_mask,
+        colorbar=False, 
+        threshold=threshold, 
+        bg_img=T1_path,
+        title=f'',
+        axes=img_ax,
+        cmap=cmap, 
+    )
+    
+    norm = colors.Normalize(vmin=0, vmax=len(maskROIs))
+    cbar = colorbar.ColorbarBase(
+        cbar_ax,
+        ticks=[0.5, 1.5, 2.5, 3.5, 4.5],
+        norm=norm,
+        orientation="vertical",
+        cmap=cmap,
+        spacing="proportional",
+    )
+    cbar_ax.set_yticklabels(['V1', 'V2', 'V3', 'V4', 'LOC'])
+        
+    img_ax.set_title(f'smooth = {smooth}')
+    print(f'[Check] Saved roiMask_smooth={smooth}.png')
+    plt.savefig(f'roiMask_smooth={smooth}.png')
+    plt.close()
+
+
+def visualize_RDM(subs, roi, problem_type, distance):
+    """
+    Visualize RSM instead of RDM due to that's what was done in
+    Mack et al.
+    
+    Will average over later runs like Mack et al.
+    """
+    runs = [3, 4]
+    RDM_sum = np.zeros((8, 8))
+    for sub in subs:
+        for run in runs:
+            # even sub: Type1 is task2
+            if int(sub) % 2 == 0:
+                if problem_type == 1:
+                    task = 2
+            # odd sub: Type1 is task3
+            else:
+                if problem_type == 1:
+                    task = 3
                     
+            RDM = np.load(
+                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+            )
+            RDM_sum += RDM
+    
+    RDM_avg = RDM_sum / (len(subs) * len(runs))
+    
+    fig, ax = plt.subplots()
+    for i in range(RDM_avg.shape[0]):
+        for j in range(RDM_avg.shape[0]):
+            text = ax.text(
+                j, i, np.round(RDM_avg[i, j], 1),
+                ha="center", va="center", color="w"
+            )
+    
+    ax.set_title(f'distance: {distance}')
+    plt.imshow(RDM_avg)
+    plt.savefig(
+        f'RDMs/average_problem_type-{problem_type}_roi-{roi}_distance-{distance}.png'
+    )
+    print(f'[Check] plotted.')
+
+
+def correlate_against_ideal_RDM(roi, distance, problem_type=1):
+    """
+    Correlate each subject's RDM to the ideal RDM 
+    of a given type. Now only supports `problem_type=1`.
+    """
+    ideal_RDM = np.ones((num_conditions, num_conditions))
+    ideal_RDM[:4, :4] = 0
+    ideal_RDM[4:, 4:] = 0
+    
+    all_rho = []
+    runs = [3, 4]
+    for sub in subs:
+        
+        # average RDM over runs for each sub
+        sub_RDM = np.zeros((num_conditions, num_conditions))
+        
+        for run in runs:
+            # even sub: Type1 is task2
+            if int(sub) % 2 == 0:
+                if problem_type == 1:
+                    task = 2
+            # odd sub: Type1 is task3
+            else:
+                if problem_type == 1:
+                    task = 3
+                    
+            RDM = np.load(
+                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+            )
+            sub_RDM += RDM
+        
+        # average over runs
+        sub_RDM /= len(runs)
+        
+        # compute correlation to the ideal RDM
+        rho = compute_RSA(sub_RDM, ideal_RDM)
+        print(f'[Check] sub{sub}, rho={rho}')
+        all_rho.append(rho)
+    
+    print(
+        stats.ttest_1samp(a=all_rho, popmean=0)
+    )
+    
+       
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
@@ -416,21 +461,23 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType='beta',
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2
-    )
+    # roi_execute(
+    #     rois=rois, 
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType='beta',
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2
+    # )
     
     # visualize_RDM(
     #     subs=subs,
     #     roi='LHHPC',
     #     problem_type=1,
     #     distance='pearson'
-    # )           
+    # )       
+    
+    correlate_against_ideal_RDM(roi='LHHPC', distance='pearson')    
