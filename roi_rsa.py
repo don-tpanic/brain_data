@@ -96,7 +96,7 @@ def merge_n_smooth_mask(roi, smooth_mask):
         run_ants_command(roi=roi, roi_nums=roi_nums, smooth_mask=smooth_mask)
     
     else:
-        print('[Check] Already done, skip')
+        print(f'[Check] mask-{roi}_T1 already done, skip')
         
     
 def transform_mask_MNI_to_T1(sub, roi):
@@ -128,7 +128,7 @@ def transform_mask_MNI_to_T1(sub, roi):
         runCmd = at.cmdline
         call(runCmd, shell=True)
     else:
-        print('[Check] Already done, skip')
+        print(f'[Check] mask-{roi}_T1 Already done, skip')
      
 
 def applyMask(
@@ -170,7 +170,7 @@ def applyMask(
     return roi, maskROI, fmri_masked
 
 
-def compute_RDM(embedding_mtx, sub, task, run, roi, distance, smooth_beta):
+def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     """
     Compute and save RDM of given beta weights and sort 
     the conditions based on specified ordering.
@@ -185,13 +185,7 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance, smooth_beta):
     elif distance == 'pearson':
         RDM = pairwise_distances(embedding_mtx, metric='correlation')
     
-    # NOTE(ken): subject level conditions have different physical meanings
-    # due to random shuffle. Hence here we do the conversion based on
-    # DCNN coding which has fixed and unique meaning.
-    # TODO: when to use at all?
-    # conversion_ordering = convert_dcnnCoding_to_subjectCoding(sub)
-    
-    # TODO: for viz, should use this mapping instead?
+    # rearrange so entries are grouped by two categories.
     conversion_ordering = reorder_mapper[sub][task]
     print(f'[Check] sub{sub}, task{task}, conversion_ordering={conversion_ordering}')
     
@@ -200,7 +194,6 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance, smooth_beta):
     
     save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     np.save(save_path, RDM)
-    # print(f'[Check] RDM shape = {RDM.shape}')
     print(f'[Check] Saved RDM: {save_path}')
     assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
     return RDM
@@ -238,8 +231,10 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
         - convert all stimuli beta weights (i.e. embedding matrix) into 
             RDM based on provided distance metric.
         - notice RDM entries need somehow reordered.
+    
+    # TODO: multiprocessing?
     """
-    maskROIs = []
+    # with multiprocessing.Pool(num_processes) as pool:
     
     for roi in rois:
         
@@ -252,10 +247,13 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
         merge_n_smooth_mask(roi=roi, smooth_mask=smooth_mask)
         
         for sub in subs:
+            
             transform_mask_MNI_to_T1(sub=sub, roi=roi)
             
             for task in tasks:
+                
                 for run in runs:
+                                        
                     beta_weights_masked = []
                     for condition in conditions:
                         # given beta weights from a task & run & condition 
@@ -269,9 +267,6 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
                             condition=condition,
                             smooth_beta=smooth_beta
                         )
-                        
-                        # visualize masks as a check
-                        maskROIs.append(maskROI)
                         beta_weights_masked.append(fmri_masked)
                     beta_weights_masked = np.array(beta_weights_masked)
                     print(f'[Check] beta_weights_masked.shape = {beta_weights_masked.shape}')
@@ -313,7 +308,6 @@ def rsa_execute(subs, tasks, runs, rois, distances):
 
 def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
     """
-
     """
     T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
 
@@ -401,7 +395,7 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(roi, distance, problem_type=1):
+def correlate_against_ideal_RDM(roi, runs, distance, problem_type=1):
     """
     Correlate each subject's RDM to the ideal RDM 
     of a given type. Now only supports `problem_type=1`.
@@ -411,7 +405,6 @@ def correlate_against_ideal_RDM(roi, distance, problem_type=1):
     ideal_RDM[4:, 4:] = 0
     
     all_rho = []
-    runs = [3, 4]
     for sub in subs:
         
         # average RDM over runs for each sub
@@ -437,9 +430,10 @@ def correlate_against_ideal_RDM(roi, distance, problem_type=1):
         
         # compute correlation to the ideal RDM
         rho = compute_RSA(sub_RDM, ideal_RDM)
-        print(f'[Check] sub{sub}, rho={rho}')
+        # print(f'[Check] sub{sub}, rho={rho}')
         all_rho.append(rho)
     
+    print(f'avg rho={np.mean(all_rho)}, std={np.std(all_rho)}')
     print(
         stats.ttest_1samp(a=all_rho, popmean=0)
     )
@@ -449,35 +443,31 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
     rdm_path = 'RDMs'
-    # rois = ['V1', 'V2', 'V3', 'V4', 'LOC']
-    rois = ['LHHPC']
+    rois = ['V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [2, 3]
-    runs = [3, 4]
+    runs = [1, 2, 3, 4]
     distances = ['pearson']
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType='beta',
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2
-    # )
-    
-    # visualize_RDM(
-    #     subs=subs,
-    #     roi='LHHPC',
-    #     problem_type=1,
+    roi_execute(
+        rois=rois, 
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType='beta',
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2
+    )
+        
+    # correlate_against_ideal_RDM(
+    #     roi='LHHPC', 
+    #     runs=[3, 4],
     #     distance='pearson'
-    # )       
-    
-    correlate_against_ideal_RDM(roi='LHHPC', distance='pearson')    
+    # )    
