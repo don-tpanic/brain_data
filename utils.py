@@ -197,8 +197,7 @@ def reorder_RDM_entries_into_chunks():
             while len(temp_mapping.keys()) != len(stimuli):
                 behaviour_i = behaviour[i][0].split('\t')
                 stimulus = ''.join(behaviour_i[3:6])
-                # label = behaviour_i[7]  # 7 - true response (some missing)
-                label = behaviour_i[6]  # 6 - subj answer (later correct?)
+                label = behaviour_i[6]  # 6 - ground true answer
                 # print(f'stimulus = {stimulus}, label = {label}')
                 temp_mapping[stimulus] = int(label)
                 i += 1
