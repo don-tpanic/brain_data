@@ -213,7 +213,7 @@ def reorder_RDM_entries_into_chunks():
                 
             # sort the labels and get indices in asc order
             grouped_labels_indices = np.argsort(labels)
-            # print(f'sub{sub}, task{task}, labels = {labels}')
+            print(f'sub{sub}, task{task}, labels={labels}, order={grouped_labels_indices}')
             mapping[sub][task].extend(grouped_labels_indices)
 
     # mapping[sub][task] = a list of indices that will be used to sort the RDM entries.
