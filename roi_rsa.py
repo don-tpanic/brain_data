@@ -1,5 +1,6 @@
 import os
 import scipy
+import time
 import numpy as np
 import multiprocessing
 import scipy.stats as stats
@@ -200,6 +201,16 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
     """
+    a = np.random.random((10000, 10000))
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    np.log(a*a)
+    
     # If a specific RDM has been saved,
     # ignore apply mask and compute RDM, 
     # just load it from disk.
@@ -274,14 +285,15 @@ def roi_execute(
     """
     with multiprocessing.Pool(num_processes) as pool:
         for roi in rois:
+           
             if 'HPC' not in roi:
                 roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
             else:
                 roi_path = 'ROIs/HPC'
-            # merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=smooth_mask)
+            merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=smooth_mask)
             
             for sub in subs:
-                # transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
                 
                 for task in tasks:
                     for run in runs:
@@ -289,8 +301,6 @@ def roi_execute(
                             
                             # Create a single process to produce 
                             # 1 RDM.
-                            print('***new process****')
-                            
                             results = pool.apply_async(
                                 applyMask_returnRDM, 
                                 args=[
@@ -298,7 +308,6 @@ def roi_execute(
                                     conditions, smooth_beta, distance
                                 ]
                             )
-                            print(results.get())
         
         pool.close()
         pool.join()
@@ -498,7 +507,7 @@ if __name__ == '__main__':
     glm_path = 'glm'
     rdm_path = 'RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
-    num_subs = 1
+    num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
