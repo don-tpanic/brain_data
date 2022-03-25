@@ -171,33 +171,34 @@ def applyMask(
     return roi, maskROI, fmri_masked
 
 
-def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
+def return_RDM(embedding_mtx, sub, task, run, roi, distance):
     """
-    Compute and save RDM of given beta weights and sort 
+    Compute and save RDM or just load of given beta weights and sort 
     the conditions based on specified ordering.
-    
-    There are two possible orderings:
-    1. Based on DCNN codings, using `convert_dcnnCoding_to_subjectCoding`
-    2. Based on class labels, using `reorder_RDM_entries_into_chunks`
     """
-    if distance == 'euclidean':
-        RDM = pairwise_distances(embedding_mtx, metric='euclidean')
-        
-    elif distance == 'pearson':
-        RDM = pairwise_distances(embedding_mtx, metric='correlation')
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     
-    # rearrange so entries are grouped by two categories.
-    conversion_ordering = reorder_mapper[sub][task]
-    print(f'[Check] sub{sub}, task{task}, conversion_ordering={conversion_ordering}')
-    
-    # reorder both cols and rows based on ordering.
-    RDM = RDM[conversion_ordering, :][:, conversion_ordering]
-    
-    RDM_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-    np.save(RDM_path, RDM)
-    print(f'[Check] Saved RDM: {RDM_path}')
-    assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
+    if len(embedding_mtx) != 0:
+        if distance == 'euclidean':
+            RDM = pairwise_distances(embedding_mtx, metric='euclidean')
             
+        elif distance == 'pearson':
+            RDM = pairwise_distances(embedding_mtx, metric='correlation')
+        
+        # rearrange so entries are grouped by two categories.
+        conversion_ordering = reorder_mapper[sub][task]
+        print(f'[Check] sub{sub}, task{task}, conversion_ordering={conversion_ordering}')
+        
+        # reorder both cols and rows based on ordering.
+        RDM = RDM[conversion_ordering, :][:, conversion_ordering]
+        np.save(RDM_fpath, RDM)
+        print(f'[Check] Saved: {RDM_fpath}')
+        assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
+        
+    else:
+        print(f'[Check] Loaded: {RDM_fpath}')
+        RDM = np.load(RDM_fpath)
+        
     return RDM
     
 
@@ -252,24 +253,30 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
             for task in tasks:
                 for run in runs:
                     for distance in distances:
+                        
+                        # If a specific RDM has been saved,
+                        # ignore apply mask and compute RDM, 
+                        # just load it from disk.
+                        RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
                         beta_weights_masked = []
-                        for condition in conditions:
-                            # given beta weights from a task & run & condition 
-                            # apply the transformed mask
-                            roi, maskROI, fmri_masked = applyMask(
-                                roi=roi, 
-                                sub=sub, 
-                                task=task, 
-                                run=run, 
-                                dataType=dataType, 
-                                condition=condition,
-                                smooth_beta=smooth_beta
-                            )
-                            beta_weights_masked.append(fmri_masked)
-                        beta_weights_masked = np.array(beta_weights_masked)
-                        print(f'[Check] beta_weights_masked.shape = {beta_weights_masked.shape}')
-                    
-                        RDM = compute_RDM(
+                        if not os.path.exists(RDM_fpath):
+                            for condition in conditions:
+                                # given beta weights from a task & run & condition 
+                                # apply the transformed mask
+                                roi, maskROI, fmri_masked = applyMask(
+                                    roi=roi, 
+                                    sub=sub, 
+                                    task=task, 
+                                    run=run, 
+                                    dataType=dataType, 
+                                    condition=condition,
+                                    smooth_beta=smooth_beta
+                                )
+                                beta_weights_masked.append(fmri_masked)
+                            beta_weights_masked = np.array(beta_weights_masked)
+
+                        # Either way, return RDM
+                        RDM = return_RDM(
                             embedding_mtx=beta_weights_masked, 
                             sub=sub, 
                             task=task, 
@@ -476,22 +483,22 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
 
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType='beta',
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='pearson',
-        problem_type=1,
-        seed=999, 
-        num_shuffles=200
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType='beta',
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=1,
+    #     seed=999, 
+    #     num_shuffles=200
+    # )    
