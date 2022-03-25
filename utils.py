@@ -198,13 +198,10 @@ def reorder_RDM_entries_into_chunks():
                 behaviour_i = behaviour[i][0].split('\t')
                 stimulus = ''.join(behaviour_i[3:6])
                 label = behaviour_i[6]  # 6 - ground true answer
-                # print(f'stimulus = {stimulus}, label = {label}')
+                print(f'stimulus = {stimulus}, label = {label}')
                 temp_mapping[stimulus] = int(label)
                 i += 1
-            
-            # print(temp_mapping.keys())
-            # print(temp_mapping.values())
-            
+                        
             # this is to reorder the stimuli as 000, 001, ..., 111
             # so the corresponding list of labels match the order.
             labels = []
@@ -214,6 +211,7 @@ def reorder_RDM_entries_into_chunks():
             # sort the labels and get indices in asc order
             grouped_labels_indices = np.argsort(labels)
             print(f'sub{sub}, task{task}, labels={labels}, order={grouped_labels_indices}')
+            print('----------------------------------------------------------------------')
             mapping[sub][task].extend(grouped_labels_indices)
 
     # mapping[sub][task] = a list of indices that will be used to sort the RDM entries.
@@ -307,5 +305,5 @@ if __name__ == '__main__':
     
     mapping = reorder_RDM_entries_into_chunks()
     print(mapping['02'][1])
-    print(mapping['03'][2])
+    # print(mapping['03'][2])
     
