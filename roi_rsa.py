@@ -274,6 +274,7 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
                                 )
                                 beta_weights_masked.append(fmri_masked)
                             beta_weights_masked = np.array(beta_weights_masked)
+                            # print('beta_weights_masked.shape', beta_weights_masked)
 
                         # Either way, return RDM
                         RDM = return_RDM(
@@ -409,8 +410,12 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed
     ideal_RDM = np.ones((num_conditions, num_conditions))
     ideal_RDM[:4, :4] = 0
     ideal_RDM[4:, 4:] = 0
+    # ideal_RDM = np.zeros((num_conditions, num_conditions))
+    # ideal_RDM[:4, :4] = 1
+    # ideal_RDM[4:, 4:] = 1
     
     run_groups = [[1], [2], [3], [4]]
+        
     for roi in rois:
         for runs in run_groups:
             
@@ -418,6 +423,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed
             
             all_rho = []  # one per subject-run of a task
             for shuffle in range(num_shuffles):
+                                
                 for sub in subs:
                     # average RDM over runs for each sub
                     sub_RDM = np.zeros((num_conditions, num_conditions))
@@ -452,6 +458,9 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed
                             )
                             # print(f'shuffle_indices={shuffle_indices}')
                             RDM = RDM[shuffle_indices, :]
+                        
+                        # print(sub, task, run)
+                        # print(RDM.shape, sub_RDM.shape)
                         sub_RDM += RDM
                     # average over runs
                     sub_RDM /= len(runs)
@@ -479,7 +488,7 @@ if __name__ == '__main__':
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    distances = ['pearson']
+    distances = ['euclidean']
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
 
@@ -497,8 +506,8 @@ if __name__ == '__main__':
     
     # correlate_against_ideal_RDM(
     #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=1,
+    #     distance='euclidean',
+    #     problem_type=6,
     #     seed=999, 
-    #     num_shuffles=200
+    #     num_shuffles=1
     # )    
