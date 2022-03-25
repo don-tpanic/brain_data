@@ -1,6 +1,7 @@
 import os
 import scipy
 import numpy as np
+import multiprocessing
 import scipy.stats as stats
 from subprocess import call
 import matplotlib.pyplot as plt
@@ -71,7 +72,7 @@ def run_ants_command(roi, roi_nums, smooth_mask):
     call(runCmd, shell=True)
     
 
-def merge_n_smooth_mask(roi, smooth_mask):
+def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     """
     First processing of the standard ROI masks is to
     merge some left&right masks and smooth them.
@@ -99,7 +100,7 @@ def merge_n_smooth_mask(roi, smooth_mask):
         print(f'[Check] mask-{roi}_T1 already done, skip')
         
     
-def transform_mask_MNI_to_T1(sub, roi):
+def transform_mask_MNI_to_T1(sub, roi, roi_path):
     """
     Given a subject and a ROI, 
     transform ROI mask from MNI space to subject's T1 space.
@@ -131,9 +132,7 @@ def transform_mask_MNI_to_T1(sub, roi):
         print(f'[Check] mask-{roi}_T1 Already done, skip')
      
 
-def applyMask(
-        roi, sub, task, run, dataType, condition, smooth_beta
-    ):
+def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
     """
     Apply ROI mask (T1 space) to subject's whole brain beta weights.
     
@@ -152,11 +151,7 @@ def applyMask(
             f'{glm_path}/datasink/1stLevel/{output_path}/{dataType}_{condition}.nii'
     
     imgs = nb.load(data_path)
-    # print(f'[Check] beta weight file: {data_path}')
-    
-    maskROI = nb.load(
-        f'{roi_path}/mask-{roi}_T1.nii.gz'
-    )
+    maskROI = nb.load(f'{roi_path}/mask-{roi}_T1.nii.gz')
     maskROI = nl.image.resample_img(
         maskROI, 
         target_affine=imgs.affine,
@@ -167,7 +162,7 @@ def applyMask(
     fmri_masked = apply_mask(
         imgs, maskROI, smoothing_fwhm=smooth_beta
     )
-    # print(fmri_masked.shape)  # per ROI & subject & condition beta weights
+    # print('fmri_masked.shape, ', fmri_masked.shape)  # per ROI & subject & condition beta weights
     return roi, maskROI, fmri_masked
 
 
@@ -179,6 +174,7 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
     RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     
     if len(embedding_mtx) != 0:
+        print(f'[Check] Computing RDM..')
         if distance == 'euclidean':
             RDM = pairwise_distances(embedding_mtx, metric='euclidean')
             
@@ -196,11 +192,47 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
         assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
         
     else:
-        print(f'[Check] Loaded: {RDM_fpath}')
-        RDM = np.load(RDM_fpath)
-        
-    return RDM
+        print(f'[Check] Already exists, {RDM_fpath}')
     
+
+def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smooth_beta, distance):
+    """
+    Combines `applyMask` and `returnRDM` in one function,
+    this is done so to enable multiprocessing.
+    """
+    # If a specific RDM has been saved,
+    # ignore apply mask and compute RDM, 
+    # just load it from disk.
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    beta_weights_masked = []
+    if not os.path.exists(RDM_fpath):
+        for condition in conditions:
+            # given beta weights from a task & run & condition 
+            # apply the transformed mask
+            roi, maskROI, fmri_masked = applyMask(
+                roi=roi, 
+                roi_path=roi_path,
+                sub=sub, 
+                task=task, 
+                run=run, 
+                dataType=dataType, 
+                condition=condition,
+                smooth_beta=smooth_beta
+            )
+            beta_weights_masked.append(fmri_masked)
+        beta_weights_masked = np.array(beta_weights_masked)
+        print('beta_weights_masked.shape', beta_weights_masked.shape)
+
+    # Either way, return RDM
+    return_RDM(
+        embedding_mtx=beta_weights_masked, 
+        sub=sub, 
+        task=task, 
+        run=run, 
+        roi=roi, 
+        distance=distance
+    )
+
 
 def compute_RSA(RDM_1, RDM_2):
     """
@@ -213,7 +245,12 @@ def compute_RSA(RDM_1, RDM_2):
     return rho
     
     
-def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth_mask, smooth_beta):
+def roi_execute(
+        rois, subs, tasks, runs, 
+        dataType, conditions, distances, 
+        smooth_mask, smooth_beta, 
+        num_processes
+    ):
     """
     This is a top-level execution routine that does the following in order:
     1. `merge_n_smooth_mask`: 
@@ -230,62 +267,41 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
         - extract beta weights based on ROI masks.
         - this step is done for tasks, runs and conditions, one at a time.
     
-    4. `compute_RDM`
+    4. `return_RDM`
         - convert all stimuli beta weights (i.e. embedding matrix) into 
             RDM based on provided distance metric.
         - notice RDM entries need somehow reordered.
-    
-    # TODO: multiprocessing?
     """
-    # with multiprocessing.Pool(num_processes) as pool:
-    
-    for roi in rois:
-        global roi_path
-        if 'HPC' not in roi:
-            roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
-        else:
-            roi_path = 'ROIs/HPC'
-        merge_n_smooth_mask(roi=roi, smooth_mask=smooth_mask)
-        
-        for sub in subs:
-            transform_mask_MNI_to_T1(sub=sub, roi=roi)
+    with multiprocessing.Pool(num_processes) as pool:
+        for roi in rois:
+            if 'HPC' not in roi:
+                roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+            else:
+                roi_path = 'ROIs/HPC'
+            # merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=smooth_mask)
             
-            for task in tasks:
-                for run in runs:
-                    for distance in distances:
-                        
-                        # If a specific RDM has been saved,
-                        # ignore apply mask and compute RDM, 
-                        # just load it from disk.
-                        RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-                        beta_weights_masked = []
-                        if not os.path.exists(RDM_fpath):
-                            for condition in conditions:
-                                # given beta weights from a task & run & condition 
-                                # apply the transformed mask
-                                roi, maskROI, fmri_masked = applyMask(
-                                    roi=roi, 
-                                    sub=sub, 
-                                    task=task, 
-                                    run=run, 
-                                    dataType=dataType, 
-                                    condition=condition,
-                                    smooth_beta=smooth_beta
-                                )
-                                beta_weights_masked.append(fmri_masked)
-                            beta_weights_masked = np.array(beta_weights_masked)
-                            # print('beta_weights_masked.shape', beta_weights_masked)
-
-                        # Either way, return RDM
-                        RDM = return_RDM(
-                            embedding_mtx=beta_weights_masked, 
-                            sub=sub, 
-                            task=task, 
-                            run=run, 
-                            roi=roi, 
-                            distance=distance
-                        )
-            print(f'[Check] End of sub{sub}, task{task}, run{run}\n\n')
+            for sub in subs:
+                # transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                
+                for task in tasks:
+                    for run in runs:
+                        for distance in distances:
+                            
+                            # Create a single process to produce 
+                            # 1 RDM.
+                            print('***new process****')
+                            
+                            results = pool.apply_async(
+                                applyMask_returnRDM, 
+                                args=[
+                                    roi, roi_path, sub, task, run, dataType, 
+                                    conditions, smooth_beta, distance
+                                ]
+                            )
+                            print(results.get())
+        
+        pool.close()
+        pool.join()
                                                             
 
 def rsa_execute(subs, tasks, runs, rois, distances):
@@ -482,16 +498,16 @@ if __name__ == '__main__':
     glm_path = 'glm'
     rdm_path = 'RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
-    num_subs = 23
+    num_subs = 1
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    distances = ['euclidean']
+    distances = ['euclidean', 'pearson']
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
-
+    
     roi_execute(
         rois=rois, 
         subs=subs, 
@@ -501,7 +517,8 @@ if __name__ == '__main__':
         conditions=conditions,
         distances=distances,
         smooth_mask=0.2,
-        smooth_beta=2
+        smooth_beta=2,
+        num_processes=68
     )
     
     # correlate_against_ideal_RDM(
