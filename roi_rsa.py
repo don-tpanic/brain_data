@@ -475,7 +475,7 @@ if __name__ == '__main__':
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     num_conditions = 8
-    subs = [f'{i:02d}' for i in range(2, num_subs+1)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]

@@ -180,7 +180,7 @@ def reorder_RDM_entries_into_chunks():
     mapping = defaultdict(lambda: defaultdict(list))
     num_subs = 23
     tasks = [1, 2, 3]
-    subs = [f'{i:02d}' for i in range(2, num_subs+1)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
     behaviour_path = f'Mack-Data/behaviour'
     for sub in subs:
