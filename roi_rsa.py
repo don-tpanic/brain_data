@@ -395,7 +395,7 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(roi, runs, distance, problem_type=1):
+def correlate_against_ideal_RDM(rois, distance, problem_type=1):
     """
     Correlate each subject's RDM to the ideal RDM 
     of a given type. Now only supports `problem_type=1`.
@@ -404,70 +404,80 @@ def correlate_against_ideal_RDM(roi, runs, distance, problem_type=1):
     ideal_RDM[:4, :4] = 0
     ideal_RDM[4:, 4:] = 0
     
-    all_rho = []
-    for sub in subs:
+    run_groups = [[1], [2], [3], [4]]
+    for roi in rois:
         
-        # average RDM over runs for each sub
-        sub_RDM = np.zeros((num_conditions, num_conditions))
+        for runs in run_groups:
         
-        for run in runs:
-            # even sub: Type1 is task2
-            if int(sub) % 2 == 0:
-                if problem_type == 1:
-                    task = 2
-            # odd sub: Type1 is task3
-            else:
-                if problem_type == 1:
-                    task = 3
-                    
-            RDM = np.load(
-                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-            )
-            sub_RDM += RDM
-        
-        # average over runs
-        sub_RDM /= len(runs)
-        
-        # compute correlation to the ideal RDM
-        rho = compute_RSA(sub_RDM, ideal_RDM)
-        # print(f'[Check] sub{sub}, rho={rho}')
-        all_rho.append(rho)
-    
-    print(f'avg rho={np.mean(all_rho)}, std={np.std(all_rho)}')
-    print(
-        stats.ttest_1samp(a=all_rho, popmean=0)
-    )
-    
+            all_rho = []
+            for sub in subs:
+                
+                # average RDM over runs for each sub
+                sub_RDM = np.zeros((num_conditions, num_conditions))
+                
+                for run in runs:
+                    # even sub: Type1 is task2
+                    if int(sub) % 2 == 0:
+                        if problem_type == 1:
+                            task = 2
+                        elif problem_type == 2:
+                            task = 3
+                    # odd sub: Type1 is task3
+                    else:
+                        if problem_type == 1:
+                            task = 3
+                        elif problem_type == 2:
+                            task = 2
+                            
+                    RDM = np.load(
+                        f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+                    )
+                    sub_RDM += RDM
+                
+                # average over runs
+                sub_RDM /= len(runs)
+                
+                # compute correlation to the ideal RDM
+                rho = compute_RSA(sub_RDM, ideal_RDM)
+                # print(f'[Check] sub{sub}, rho={rho}')
+                all_rho.append(rho)
+            
+            print(
+                f'roi=[{roi}], runs={runs}, ' \
+                f'avg_rho=[{np.mean(all_rho):.2f}], std=[{np.std(all_rho):.2f}], ' \
+                f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
+                f'pvalue=[{stats.ttest_1samp(a=all_rho, popmean=0)[1]:.2f}]' \
+            )    
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
     rdm_path = 'RDMs'
-    rois = ['V4', 'LOC', 'RHHPC', 'LHHPC']
+    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC', ]
     num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
-    tasks = [2, 3]
+    tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['pearson']
     
-    reorder_mapper = reorder_RDM_entries_into_chunks()
+    # reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType='beta',
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2
-    )
+    # roi_execute(
+    #     rois=rois, 
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType='beta',
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2
+    # )
         
-    # correlate_against_ideal_RDM(
-    #     roi='LHHPC', 
-    #     runs=[3, 4],
-    #     distance='pearson'
-    # )    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1
+    )    
