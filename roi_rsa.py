@@ -395,7 +395,7 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(rois, distance, problem_type=1):
+def correlate_against_ideal_RDM(rois, distance, problem_type):
     """
     Correlate each subject's RDM to the ideal RDM 
     of a given type. Now only supports `problem_type=1`.
@@ -416,18 +416,22 @@ def correlate_against_ideal_RDM(rois, distance, problem_type=1):
                 sub_RDM = np.zeros((num_conditions, num_conditions))
                 
                 for run in runs:
-                    # even sub: Type1 is task2
+                    # even sub: Type1 is task2, Type2 is task3
                     if int(sub) % 2 == 0:
                         if problem_type == 1:
                             task = 2
                         elif problem_type == 2:
                             task = 3
-                    # odd sub: Type1 is task3
+                        else:
+                            task = 1
+                    # odd sub: Type1 is task3, Type2 is task2
                     else:
                         if problem_type == 1:
                             task = 3
                         elif problem_type == 2:
                             task = 2
+                        else:
+                            task = 1
                             
                     RDM = np.load(
                         f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
@@ -444,16 +448,19 @@ def correlate_against_ideal_RDM(rois, distance, problem_type=1):
             
             print(
                 f'roi=[{roi}], runs={runs}, ' \
-                f'avg_rho=[{np.mean(all_rho):.2f}], std=[{np.std(all_rho):.2f}], ' \
+                f'avg_rho=[{np.mean(all_rho):.2f}], ' \
+                # f'std=[{np.std(all_rho):.2f}], ' \
                 f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
                 f'pvalue=[{stats.ttest_1samp(a=all_rho, popmean=0)[1]:.2f}]' \
             )    
+        print('------------------------------------------------------------------------')
+
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
     rdm_path = 'RDMs'
-    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC', ]
+    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+1)]
@@ -475,9 +482,9 @@ if __name__ == '__main__':
     #     smooth_mask=0.2,
     #     smooth_beta=2
     # )
-        
+    
     correlate_against_ideal_RDM(
         rois=rois, 
         distance='pearson',
-        problem_type=1
+        problem_type=2
     )    
