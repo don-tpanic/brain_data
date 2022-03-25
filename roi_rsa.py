@@ -141,6 +141,7 @@ def applyMask(
     -------
         per (ROI, subject, task, run, condition) beta weights
     """
+    print(f'[Check] apply mask..')
     output_path = f'output_run_{run}_sub_{sub}_task_{task}'
     
     if dataType == 'beta':
@@ -192,10 +193,11 @@ def compute_RDM(embedding_mtx, sub, task, run, roi, distance):
     # reorder both cols and rows based on ordering.
     RDM = RDM[conversion_ordering, :][:, conversion_ordering]
     
-    save_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-    np.save(save_path, RDM)
-    print(f'[Check] Saved RDM: {save_path}')
+    RDM_path = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    np.save(RDM_path, RDM)
+    print(f'[Check] Saved RDM: {RDM_path}')
     assert RDM.shape == (embedding_mtx.shape[0], embedding_mtx.shape[0])
+            
     return RDM
     
 
@@ -237,41 +239,36 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
     # with multiprocessing.Pool(num_processes) as pool:
     
     for roi in rois:
-        
         global roi_path
         if 'HPC' not in roi:
             roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         else:
             roi_path = 'ROIs/HPC'
-
         merge_n_smooth_mask(roi=roi, smooth_mask=smooth_mask)
         
         for sub in subs:
-            
             transform_mask_MNI_to_T1(sub=sub, roi=roi)
             
             for task in tasks:
-                
                 for run in runs:
-                                        
-                    beta_weights_masked = []
-                    for condition in conditions:
-                        # given beta weights from a task & run & condition 
-                        # apply the transformed mask
-                        roi, maskROI, fmri_masked = applyMask(
-                            roi=roi, 
-                            sub=sub, 
-                            task=task, 
-                            run=run, 
-                            dataType=dataType, 
-                            condition=condition,
-                            smooth_beta=smooth_beta
-                        )
-                        beta_weights_masked.append(fmri_masked)
-                    beta_weights_masked = np.array(beta_weights_masked)
-                    print(f'[Check] beta_weights_masked.shape = {beta_weights_masked.shape}')
-                    
                     for distance in distances:
+                        beta_weights_masked = []
+                        for condition in conditions:
+                            # given beta weights from a task & run & condition 
+                            # apply the transformed mask
+                            roi, maskROI, fmri_masked = applyMask(
+                                roi=roi, 
+                                sub=sub, 
+                                task=task, 
+                                run=run, 
+                                dataType=dataType, 
+                                condition=condition,
+                                smooth_beta=smooth_beta
+                            )
+                            beta_weights_masked.append(fmri_masked)
+                        beta_weights_masked = np.array(beta_weights_masked)
+                        print(f'[Check] beta_weights_masked.shape = {beta_weights_masked.shape}')
+                    
                         RDM = compute_RDM(
                             embedding_mtx=beta_weights_masked, 
                             sub=sub, 
@@ -280,7 +277,6 @@ def roi_execute(rois, subs, tasks, runs, dataType, conditions, distances, smooth
                             roi=roi, 
                             distance=distance
                         )
-                        
             print(f'[Check] End of sub{sub}, task{task}, run{run}\n\n')
                                                             
 
@@ -395,10 +391,13 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(rois, distance, problem_type):
+def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed=999):
     """
     Correlate each subject's RDM to the ideal RDM 
-    of a given type. Now only supports `problem_type=1`.
+    of a given type. To better examine the significance of 
+    the correlations, we build in a shuffle mechanism that
+    randomly permutes the entries of the RDM to determine if 
+    the correlation we get during un-shuffled is real.
     """
     ideal_RDM = np.ones((num_conditions, num_conditions))
     ideal_RDM[:4, :4] = 0
@@ -406,50 +405,56 @@ def correlate_against_ideal_RDM(rois, distance, problem_type):
     
     run_groups = [[1], [2], [3], [4]]
     for roi in rois:
-        
         for runs in run_groups:
-        
-            all_rho = []
-            for sub in subs:
-                
-                # average RDM over runs for each sub
-                sub_RDM = np.zeros((num_conditions, num_conditions))
-                
-                for run in runs:
-                    # even sub: Type1 is task2, Type2 is task3
-                    if int(sub) % 2 == 0:
-                        if problem_type == 1:
-                            task = 2
-                        elif problem_type == 2:
-                            task = 3
-                        else:
-                            task = 1
-                    # odd sub: Type1 is task3, Type2 is task2
-                    else:
-                        if problem_type == 1:
-                            task = 3
-                        elif problem_type == 2:
-                            task = 2
-                        else:
-                            task = 1
-                            
-                    RDM = np.load(
-                        f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-                    )
-                    sub_RDM += RDM
-                
-                # average over runs
-                sub_RDM /= len(runs)
-                
-                # compute correlation to the ideal RDM
-                rho = compute_RSA(sub_RDM, ideal_RDM)
-                # print(f'[Check] sub{sub}, rho={rho}')
-                all_rho.append(rho)
             
+            np.random.seed(seed)
+            
+            all_rho = []  # one per subject-run of a task
+            for shuffle in range(num_shuffles):
+                for sub in subs:
+                    # average RDM over runs for each sub
+                    sub_RDM = np.zeros((num_conditions, num_conditions))
+                    
+                    for run in runs:
+                        # even sub: Type1 is task2, Type2 is task3
+                        if int(sub) % 2 == 0:
+                            if problem_type == 1:
+                                task = 2
+                            elif problem_type == 2:
+                                task = 3
+                            else:
+                                task = 1
+                        # odd sub: Type1 is task3, Type2 is task2
+                        else:
+                            if problem_type == 1:
+                                task = 3
+                            elif problem_type == 2:
+                                task = 2
+                            else:
+                                task = 1
+                                
+                        RDM = np.load(
+                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+                        )
+                        
+                        if num_shuffles > 1:
+                            shuffle_indices = np.random.choice(
+                                range(RDM.shape[0]), 
+                                size=RDM.shape[0],
+                                replace=False
+                            )
+                            # print(f'shuffle_indices={shuffle_indices}')
+                            RDM = RDM[shuffle_indices, :]
+                        sub_RDM += RDM
+                    # average over runs
+                    sub_RDM /= len(runs)
+                    # compute correlation to the ideal RDM
+                    rho = compute_RSA(sub_RDM, ideal_RDM)
+                    all_rho.append(rho)
             print(
-                f'roi=[{roi}], runs={runs}, ' \
+                f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], runs={runs}, ' \
                 f'avg_rho=[{np.mean(all_rho):.2f}], ' \
-                # f'std=[{np.std(all_rho):.2f}], ' \
+                f'std=[{np.std(all_rho):.2f}], ' \
                 f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
                 f'pvalue=[{stats.ttest_1samp(a=all_rho, popmean=0)[1]:.2f}]' \
             )    
@@ -469,8 +474,8 @@ if __name__ == '__main__':
     runs = [1, 2, 3, 4]
     distances = ['pearson']
     
-    # reorder_mapper = reorder_RDM_entries_into_chunks()
-    
+    reorder_mapper = reorder_RDM_entries_into_chunks()
+
     # roi_execute(
     #     rois=rois, 
     #     subs=subs, 
@@ -486,5 +491,7 @@ if __name__ == '__main__':
     correlate_against_ideal_RDM(
         rois=rois, 
         distance='pearson',
-        problem_type=2
+        problem_type=1,
+        seed=999, 
+        num_shuffles=200
     )    
