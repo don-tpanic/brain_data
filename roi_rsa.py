@@ -201,16 +201,6 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
     """
-    a = np.random.random((10000, 10000))
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    np.log(a*a)
-    
     # If a specific RDM has been saved,
     # ignore apply mask and compute RDM, 
     # just load it from disk.
@@ -532,8 +522,8 @@ if __name__ == '__main__':
     
     correlate_against_ideal_RDM(
         rois=rois, 
-        distance='pearson',
-        problem_type=1,
+        distance='euclidean',
+        problem_type=6,
         seed=999, 
         num_shuffles=1
     )    
