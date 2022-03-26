@@ -517,23 +517,23 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType='beta',
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=68
-    )
-    
-    # correlate_against_ideal_RDM(
+    # roi_execute(
     #     rois=rois, 
-    #     distance='euclidean',
-    #     problem_type=6,
-    #     seed=999, 
-    #     num_shuffles=1
-    # )    
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType='beta',
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=68
+    # )
+    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        seed=999, 
+        num_shuffles=1
+    )    
