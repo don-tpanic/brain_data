@@ -164,8 +164,8 @@ def GLM(sub, task, run, n_procs):
 
     # String template with {}-based strings
     templates = {
-        'anat': '/home/ken/projects/brain_data/Mack-Data/dropbox/' \
-                'sub-{sub}/anat/sub-{sub}_T1w.nii.gz',
+        'anat': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
+                'sub-{sub}/anat/sub-{sub}_desc-preproc_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
         'mc_param': '/home/ken/projects/brain_data/glm/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
@@ -334,30 +334,26 @@ def execute(subs, tasks, runs, n_procs):
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm'
-    subs = []
-    for i in range(2, 25):
-        if len(f'{i}') == 1:
-            subs.append(f'0{i}')
-        else:
-            subs.append(f'{i}')
+    num_subs = 23
+    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    n_procs = 60
+    n_procs = 70
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
     print(f'n_procs={n_procs}')
-    # execute(subs, tasks, runs, n_procs)
+    execute(subs, tasks, runs, n_procs)
     
-    sub = '02'
-    task = '1'
-    run = '1'
-    dataType = 'beta'
-    condition = '0002'
-    plot = 'contrast'
-    threshold = 10
-    visualize_glm(
-        sub=sub, task=task, run=run, 
-        dataType=dataType, condition=condition, 
-        plot=plot, threshold=threshold
-    )
+    # sub = '02'
+    # task = '1'
+    # run = '1'
+    # dataType = 'beta'
+    # condition = '0002'
+    # plot = 'contrast'
+    # threshold = 10
+    # visualize_glm(
+    #     sub=sub, task=task, run=run, 
+    #     dataType=dataType, condition=condition, 
+    #     plot=plot, threshold=threshold
+    # )
