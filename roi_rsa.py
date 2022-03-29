@@ -177,6 +177,9 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
     Compute and save RDM or just load of given beta weights and sort 
     the conditions based on specified ordering.
     """
+    if not os.path.exists(rdm_path):
+        os.mkdir(rdm_path)
+    
     RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
     
     if len(embedding_mtx) != 0:
