@@ -24,7 +24,7 @@ from utils import convert_dcnnCoding_to_subjectCoding, reorder_RDM_entries_into_
 2. Perform RSA
 """
 
-def run_ants_command(roi, roi_nums, smooth_mask):
+def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
     """
     Helper function that automatically grabs files to prepare 
     for the final ants command.
@@ -95,7 +95,12 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
         else:
             roi_nums = None
         
-        run_ants_command(roi=roi, roi_nums=roi_nums, smooth_mask=smooth_mask)
+        run_ants_command(
+            roi=roi, 
+            roi_path=roi_path, 
+            roi_nums=roi_nums, 
+            smooth_mask=smooth_mask
+        )
     
     else:
         print(f'[Check] mask-{roi}_T1 already done, skip')
@@ -507,23 +512,23 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType='beta',
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=68
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='euclidean',
-        problem_type=6,
-        seed=999, 
-        num_shuffles=1
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType='beta',
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=68
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='euclidean',
+    #     problem_type=6,
+    #     seed=999, 
+    #     num_shuffles=1
+    # )    
