@@ -57,8 +57,8 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
                         
         maths.inputs.in_file = f'{roi_path}/HIPP_BODY_{h}h.nii.gz'
         maths.inputs.op_string = '-add %s -add %s -add %s ' 
-        if smooth:
-            maths.inputs.op_string += f'-s {smooth}'
+        if smooth_mask:
+            maths.inputs.op_string += f'-s {smooth_mask}'
         maths.inputs.op_string += ' -bin '
         
         maths.inputs.operand_files = [
