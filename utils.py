@@ -229,6 +229,9 @@ def prepare_events_table(sub, task, run, save_dir):
     - Both `onset` and `duration` are from 'trialtiming/'
     - weight is 1
     - trial_type is from 'behaviour/'
+    
+    Note, each presentation (i.e. repetition) of the stimulus, 
+    is considered a unique condition hence has its own regressor and beta weight.
     """
     output_dir = f'{save_dir}/events'
     if not os.path.exists(output_dir):
@@ -238,13 +241,18 @@ def prepare_events_table(sub, task, run, save_dir):
     behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{task}_run{run}.txt'
     trialtiming = pd.read_csv(trialtiming_path, header=None).to_numpy()
     behaviour = pd.read_csv(behaviour_path, header=None).to_numpy()
-
+    
     onsets = ['onset']
     durations = ['duration']
     weights = ['weight']
     stimuli = ['stimulus']
-        
+    
+    # all 32 trials of 1 run
     for i in range(len(trialtiming)):
+        
+        # 1, 2, 3, 4
+        repetition = i // 8 + 1
+        
         trialtiming_i = trialtiming[i][0].split('\t')
         behaviour_i = behaviour[i][0].split('\t')
         
@@ -252,6 +260,7 @@ def prepare_events_table(sub, task, run, save_dir):
         stimulus_onset = int(trialtiming_i[4])
         stimulus_duration = 3.5
         stimulus = ''.join(behaviour_i[3:6])   # convert ['1', '0', '1'] to '101'
+        stimulus = f'{stimulus}_rp{repetition}'
         onsets.append(stimulus_onset)
         durations.append(stimulus_duration)
         stimuli.append(stimulus)
@@ -303,7 +312,10 @@ def prepare_motion_correction_params(sub, task, run, save_dir):
 if __name__ == '__main__':
     # convert_dcnnCoding_to_subjectCoding(dcnn_stimulus='101', sub='23')
     
-    mapping = reorder_RDM_entries_into_chunks()
-    print(mapping['02'][1])
+    # mapping = reorder_RDM_entries_into_chunks()
+    # print(mapping['02'][1])
     # print(mapping['03'][2])
+    
+    base_dir = 'glm_trial-estimate'
+    prepare_events_table(sub='03', task=2, run=4, save_dir=base_dir)
     
