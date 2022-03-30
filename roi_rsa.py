@@ -535,33 +535,39 @@ if __name__ == '__main__':
     rdm_path = 'RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
-    num_conditions = 8
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
-    conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
+    dataType = 'beta'
+    num_conditions = 16  # exc. bias term (8 + 8_fb)
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']
+    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     
+    if dataType == 'beta':
+        conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
+        
+    elif dataType == 'spmT':
+        conditions = [f'{i:04d}' for i in range(1, num_conditions//2)]
+
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType='beta',
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=68
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='euclidean',
-        problem_type=6,
-        seed=999, 
-        num_shuffles=1,
-        method='kendall_a'
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=68
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='euclidean',
+    #     problem_type=6,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='kendall_a'
+    # )    
