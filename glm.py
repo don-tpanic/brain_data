@@ -82,24 +82,33 @@ def GLM(sub, task, run, n_procs):
     )
 
     # Condition names
-    condition_names = [
-        '000', '001', '010', '011', 
-        '100', '101', '110', '111',
-        '000_fb', '001_fb', '010_fb', '011_fb', 
-        '100_fb', '101_fb', '110_fb', '111_fb',
-    ]
-        
-    # Contrasts
-    cont01 = ['000', 'T', condition_names, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont02 = ['001', 'T', condition_names, [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont03 = ['010', 'T', condition_names, [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont04 = ['011', 'T', condition_names, [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont05 = ['100', 'T', condition_names, [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont06 = ['101', 'T', condition_names, [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont07 = ['110', 'T', condition_names, [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-    cont08 = ['111', 'T', condition_names, [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]]
-    contrast_list = [cont01, cont02, cont03, cont04, cont05, cont06, cont07, cont08]
+    stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
+    num_repetitions = 4
+    feedback_or_not = 2
+    
+    condition_names = []
+    for stimulus in stimuli:
+        for rp in range(1, num_repetitions+1):
+            for i in range(feedback_or_not):
+                if i == 0:
+                    condition_names.append(f'{stimulus}_rp{rp}')
+                else:
+                    condition_names.append(f'{stimulus}_rp{rp}_fb')
+    
+    num_conditions = len(condition_names)      
+    # print(len(condition_names))   # 64
 
+    # Contrasts
+    contrast_list = []
+    # step=2 to skip contrast for feedback onset
+    for i in range(0, num_conditions, 2):
+        mask = np.zeros(num_conditions, dtype=int)
+        mask[i] = 1
+        cont_i = [condition_names[i], 'T', condition_names, list(mask)]
+        contrast_list.append(cont_i)
+    
+    # print(contrast_list[1])
+    
     # Initiate the Level1Design node here
     level1design = Node(
         Level1Design(
@@ -169,8 +178,8 @@ def GLM(sub, task, run, n_procs):
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
         'mc_param': '/home/ken/projects/brain_data/glm/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
-    }
-
+    }    
+    
     # Create SelectFiles node
     sf = Node(
         SelectFiles(
@@ -187,7 +196,7 @@ def GLM(sub, task, run, n_procs):
     sf.iterables = [
         ('sub', subject_list), 
         ('task', task_list), 
-        ('run', run_list),
+        ('run', run_list)
     ]
 
     # Initiate the two Gunzip node here
@@ -264,6 +273,7 @@ def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
         ax.set_ylabel('Volume id')
         ax.set_xticks(np.arange(len(names)))
         ax.set_xticklabels(names, rotation=90)
+        plt.tight_layout()
         plt.savefig('dmtx.png')
         plt.close()
 
@@ -333,12 +343,12 @@ def execute(subs, tasks, runs, n_procs):
 
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm'
-    num_subs = 23
+    base_dir = 'glm_trial-estimate'
+    num_subs = 1
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
-    tasks = [1, 2, 3]
-    runs = [1, 2, 3, 4]
-    n_procs = 70
+    tasks = [1]
+    runs = [1]
+    n_procs = 2
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
@@ -350,10 +360,10 @@ if __name__ == '__main__':
     # run = '1'
     # dataType = 'beta'
     # condition = '0002'
-    # plot = 'contrast'
+    # plot = 'dmtx'
     # threshold = 10
     # visualize_glm(
-    #     sub=sub, task=task, run=run, 
+    #     sub=sub, task=task, run=run,
     #     dataType=dataType, condition=condition, 
     #     plot=plot, threshold=threshold
     # )
