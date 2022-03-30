@@ -3,6 +3,7 @@ pyscript.m
 
 # Ignore big files
 Mack-Data
+glm
 glm_*
 ROIs/
 RDMs/
