@@ -243,14 +243,43 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     )
 
 
-def compute_RSA(RDM_1, RDM_2):
+def kendall_a(a, b):
+    """Kendalls tau-a
+    Arguments:
+        a {array} -- [description]
+        b {[array]} -- [description]
+    Returns:
+        tau -- Kendalls tau-a
+        
+    E.g.
+        x1 = np.random.random(10000)
+        x2 = np.random.random(10000)
+        print(kendall_a(x1,x2))
+    """
+    a, b = np.array(a), np.array(b)
+    assert a.size == b.size, 'Both arrays need to be the same size'
+    K = 0
+    n = a.size
+    for k in range(n):
+        pairRelations_a = np.sign(a[k]-a[k+1:])
+        pairRelations_b = np.sign(b[k]-b[k+1:])
+        K = K + np.sum(pairRelations_a * pairRelations_b)
+    return K/(n*(n-1)/2)
+
+
+def compute_RSA(RDM_1, RDM_2, method):
     """
     Compute spearman correlation between 
     two RDMs' upper trigular entries
     """
     RDM_1_triu = RDM_1[np.triu_indices(RDM_1.shape[0])]
     RDM_2_triu = RDM_2[np.triu_indices(RDM_2.shape[0])]
-    rho, _ = stats.spearmanr(RDM_1_triu, RDM_2_triu)
+    
+    if method == 'spearman':
+        rho, _ = stats.spearmanr(RDM_1_triu, RDM_2_triu)
+    elif method == 'kendall_a':
+        rho = kendall_a(RDM_1_triu, RDM_2_triu)
+    
     return rho
     
     
@@ -422,7 +451,7 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed=999):
+def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, method, seed=999):
     """
     Correlate each subject's RDM to the ideal RDM 
     of a given type. To better examine the significance of 
@@ -488,7 +517,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, seed
                     # average over runs
                     sub_RDM /= len(runs)
                     # compute correlation to the ideal RDM
-                    rho = compute_RSA(sub_RDM, ideal_RDM)
+                    rho = compute_RSA(sub_RDM, ideal_RDM, method=method)
                     all_rho.append(rho)
             print(
                 f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], runs={runs}, ' \
@@ -515,23 +544,24 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType='beta',
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=68
-    )
-    
-    # correlate_against_ideal_RDM(
+    # roi_execute(
     #     rois=rois, 
-    #     distance='euclidean',
-    #     problem_type=6,
-    #     seed=999, 
-    #     num_shuffles=1
-    # )    
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType='beta',
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=68
+    # )
+    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='euclidean',
+        problem_type=6,
+        seed=999, 
+        num_shuffles=1,
+        method='kendall_a'
+    )    
