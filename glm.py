@@ -273,6 +273,7 @@ def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
         ax.set_ylabel('Volume id')
         ax.set_xticks(np.arange(len(names)))
         ax.set_xticklabels(names, rotation=90)
+        plt.tight_layout()
         plt.savefig('dmtx.png')
         plt.close()
 
@@ -359,7 +360,7 @@ if __name__ == '__main__':
     # run = '1'
     # dataType = 'beta'
     # condition = '0002'
-    # plot = 'contrast'
+    # plot = 'dmtx'
     # threshold = 10
     # visualize_glm(
     #     sub=sub, task=task, run=run, 
