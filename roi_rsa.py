@@ -172,7 +172,7 @@ def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
     return roi, maskROI, fmri_masked
 
 
-def return_RDM(embedding_mtx, sub, task, run, roi, distance):
+def return_RDM(embedding_mtx, sub, task, run, roi, distance, dataType):
     """
     Compute and save RDM or just load of given beta weights and sort 
     the conditions based on specified ordering.
@@ -180,7 +180,7 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
     if not os.path.exists(rdm_path):
         os.mkdir(rdm_path)
     
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
     
     if len(embedding_mtx) != 0:
         print(f'[Check] Computing RDM..')
@@ -212,7 +212,7 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     # If a specific RDM has been saved,
     # ignore apply mask and compute RDM, 
     # just load it from disk.
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
     beta_weights_masked = []
     if not os.path.exists(RDM_fpath):
         for condition in conditions:
@@ -535,6 +535,7 @@ if __name__ == '__main__':
     rdm_path = 'RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
+    dataType = 'beta'
     num_conditions = 8
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
@@ -544,24 +545,24 @@ if __name__ == '__main__':
     
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType='beta',
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=68
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='euclidean',
-        problem_type=6,
-        seed=999, 
-        num_shuffles=1,
-        method='kendall_a'
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=68
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='euclidean',
+    #     problem_type=6,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='kendall_a'
+    # )    
