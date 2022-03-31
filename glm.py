@@ -107,7 +107,7 @@ def GLM(sub, task, run, n_procs):
         cont_i = [condition_names[i], 'T', condition_names, list(mask)]
         contrast_list.append(cont_i)
     
-    # print(contrast_list[1])
+    # print(contrast_list[15])
     
     # Initiate the Level1Design node here
     level1design = Node(
@@ -344,11 +344,11 @@ def execute(subs, tasks, runs, n_procs):
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     base_dir = 'glm_trial-estimate'
-    num_subs = 1
+    num_subs = 23
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
-    tasks = [1]
-    runs = [1]
-    n_procs = 2
+    tasks = [1, 2, 3]
+    runs = [1, 2, 3, 4]
+    n_procs = 70
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
