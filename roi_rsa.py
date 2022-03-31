@@ -146,7 +146,7 @@ def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
     -------
         per (ROI, subject, task, run, condition) beta weights
     """
-    print(f'[Check] apply mask..')
+    print(f'[Check] apply mask, condition={condition}')
     output_path = f'output_run_{run}_sub_{sub}_task_{task}'
     
     if dataType == 'beta':
@@ -180,7 +180,7 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
     if not os.path.exists(rdm_path):
         os.mkdir(rdm_path)
     
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
     
     if len(embedding_mtx) != 0:
         print(f'[Check] Computing RDM..')
@@ -212,7 +212,7 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     # If a specific RDM has been saved,
     # ignore apply mask and compute RDM, 
     # just load it from disk.
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
     beta_weights_masked = []
     if not os.path.exists(RDM_fpath):
         for condition in conditions:
@@ -451,7 +451,7 @@ def visualize_RDM(subs, roi, problem_type, distance):
     print(f'[Check] plotted.')
 
 
-def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, method, seed=999):
+def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, method, dataType, seed=999):
     """
     Correlate each subject's RDM to the ideal RDM 
     of a given type. To better examine the significance of 
@@ -459,7 +459,8 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
     randomly permutes the entries of the RDM to determine if 
     the correlation we get during un-shuffled is real.
     """
-    ideal_RDM = np.ones((num_conditions, num_conditions))
+    # exc. the _fb conditions
+    ideal_RDM = np.ones((num_conditions // 2, num_conditions // 2))
     ideal_RDM[:4, :4] = 0
     ideal_RDM[4:, 4:] = 0
     # ideal_RDM = np.zeros((num_conditions, num_conditions))
@@ -478,7 +479,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
                                 
                 for sub in subs:
                     # average RDM over runs for each sub
-                    sub_RDM = np.zeros((num_conditions, num_conditions))
+                    sub_RDM = np.zeros((num_conditions // 2, num_conditions // 2))
                     
                     for run in runs:
                         # even sub: Type1 is task2, Type2 is task3
@@ -499,7 +500,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
                                 task = 1
                                 
                         RDM = np.load(
-                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
+                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
                         )
                         
                         if num_shuffles > 1:
@@ -535,39 +536,40 @@ if __name__ == '__main__':
     rdm_path = 'RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
-    dataType = 'beta'
+    dataType = 'spmT'
     num_conditions = 16  # exc. bias term (8 + 8_fb)
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    distances = ['euclidean', 'pearson']
+    distances = ['euclidean', 'pearson']    
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     
     if dataType == 'beta':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         
     elif dataType == 'spmT':
-        conditions = [f'{i:04d}' for i in range(1, num_conditions//2)]
+        conditions = [f'{i:04d}' for i in range(1, num_conditions//2+1)]
 
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType=dataType,
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=68
-    )
-    
-    # correlate_against_ideal_RDM(
+    # roi_execute(
     #     rois=rois, 
-    #     distance='euclidean',
-    #     problem_type=6,
-    #     seed=999, 
-    #     num_shuffles=1,
-    #     method='kendall_a'
-    # )    
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType=dataType,
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=68
+    # )
+    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=6,
+        seed=999, 
+        num_shuffles=1,
+        method='spearman',
+        dataType='spmT'
+    )    
