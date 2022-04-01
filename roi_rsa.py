@@ -172,13 +172,10 @@ def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
     return roi, maskROI, fmri_masked
 
 
-def return_RDM(embedding_mtx, sub, task, run, repetition, roi, distance, RDM_fpath):
+def return_RDM(embedding_mtx, sub, task, run, roi, distance, RDM_fpath):
     """
     Compute and save RDM or just load of given beta weights and sort 
     the conditions based on specified ordering.
-    
-    Note under `trial-level estimate`, the RDM needs to be saved at 
-    the repetition level. That is, each run, there are 4 RDMs 
     """
     if not os.path.exists(rdm_path):
         os.mkdir(rdm_path)
@@ -209,6 +206,10 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     """
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
+    
+    NOTE:
+        Under `trial-level-glm`, the RDM needs to be saved at 
+        the repetition level. That is, each run, there are 4 RDMs.
     """
     num_repetitions_per_run = 4
     
@@ -248,7 +249,6 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
             sub=sub, 
             task=task, 
             run=run,
-            repetition=rp,
             roi=roi, 
             distance=distance,
             RDM_fpath=RDM_fpath
