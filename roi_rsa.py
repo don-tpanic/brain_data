@@ -211,8 +211,6 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
         Under `trial-level-glm`, the RDM needs to be saved at 
         the repetition level. That is, each run, there are 4 RDMs.
     """
-    num_repetitions_per_run = 4
-    
     for rp in range(1, num_repetitions_per_run+1):
         
         # Check if the RDM of a run's last repetition is non-existent, then 
@@ -394,7 +392,77 @@ def visualize_RDM(subs, roi, problem_type, distance):
     )
     print(f'[Check] plotted.')
 
-       
+
+def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, method, dataType, conditions, seed=999):
+    """
+    Correlate each subject's RDM to the ideal RDM 
+    of a given type. To better examine the significance of 
+    the correlations, we build in a shuffle mechanism that
+    randomly permutes the entries of the RDM to determine if 
+    the correlation we get during un-shuffled is real.
+    
+    NOTE:
+        Under `trial-level-glm`, each RSA comparison is done at 
+        repetition level instead of run level.
+    """
+    ideal_RDM = np.ones((8, 8))
+    ideal_RDM[:4, :4] = 0
+    ideal_RDM[4:, 4:] = 0
+    runs = [1, 2, 3, 4]
+        
+    for roi in rois:
+        for run in runs:
+            for rp in range(1, num_repetitions_per_run+1):
+                
+                np.random.seed(seed)
+                all_rho = []  # one per subject-run-repetition of a task
+                for shuffle in range(num_shuffles):          
+                    for sub in subs:
+                        
+                        # even sub: Type1 is task2, Type2 is task3
+                        if int(sub) % 2 == 0:
+                            if problem_type == 1:
+                                task = 2
+                            elif problem_type == 2:
+                                task = 3
+                            else:
+                                task = 1
+                                
+                        # odd sub: Type1 is task3, Type2 is task2
+                        else:
+                            if problem_type == 1:
+                                task = 3
+                            elif problem_type == 2:
+                                task = 2
+                            else:
+                                task = 1
+                                
+                        # get one repetition's RDM
+                        sub_RDM = np.load(
+                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_rp-{rp}_roi-{roi}_{distance}_{dataType}.npy'
+                        )
+                        if num_shuffles > 1:
+                            shuffle_indices = np.random.choice(
+                                range(sub_RDM.shape[0]), 
+                                size=sub_RDM.shape[0],
+                                replace=False
+                            )
+                            sub_RDM = sub_RDM[shuffle_indices, :]
+                            
+                        # compute one repetition's correlation to the ideal RDM
+                        rho = compute_RSA(sub_RDM, ideal_RDM, method=method)
+                        # collects all repetitions of a run and of all subjects
+                        all_rho.append(rho)
+                print(
+                    f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], run={run}, rp={rp}, ' \
+                    f'avg_rho=[{np.mean(all_rho):.2f}], ' \
+                    f'std=[{np.std(all_rho):.2f}], ' \
+                    f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
+                    f'pvalue=[{stats.ttest_1samp(a=all_rho, popmean=0)[1]:.2f}]' \
+                )    
+            print('------------------------------------------------------------------------')
+
+  
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -408,6 +476,7 @@ if __name__ == '__main__':
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']
+    num_repetitions_per_run = 4
     
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
@@ -419,24 +488,26 @@ if __name__ == '__main__':
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType=dataType,
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=70
-    )
-    
-    # correlate_against_ideal_RDM(
+    # roi_execute(
     #     rois=rois, 
-    #     distance='euclidean',
-    #     problem_type=6,
-    #     seed=999, 
-    #     num_shuffles=1,
-    #     method='kendall_a'
-    # )    
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType=dataType,
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=70
+    # )
+    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        seed=999, 
+        num_shuffles=1,
+        method='spearman',
+        dataType=dataType,
+        conditions=conditions
+    )    
