@@ -172,16 +172,17 @@ def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
     return roi, maskROI, fmri_masked
 
 
-def return_RDM(embedding_mtx, sub, task, run, roi, distance, dataType):
+def return_RDM(embedding_mtx, sub, task, run, repetition, roi, distance, RDM_fpath):
     """
     Compute and save RDM or just load of given beta weights and sort 
     the conditions based on specified ordering.
+    
+    Note under `trial-level estimate`, the RDM needs to be saved at 
+    the repetition level. That is, each run, there are 4 RDMs 
     """
     if not os.path.exists(rdm_path):
         os.mkdir(rdm_path)
-    
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
-    
+        
     if len(embedding_mtx) != 0:
         print(f'[Check] Computing RDM..')
         if distance == 'euclidean':
@@ -209,38 +210,49 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
     """
-    # If a specific RDM has been saved,
-    # ignore apply mask and compute RDM, 
-    # just load it from disk.
-    RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
-    beta_weights_masked = []
-    if not os.path.exists(RDM_fpath):
-        for condition in conditions:
-            # given beta weights from a task & run & condition 
-            # apply the transformed mask
-            roi, maskROI, fmri_masked = applyMask(
-                roi=roi, 
-                roi_path=roi_path,
-                sub=sub, 
-                task=task, 
-                run=run, 
-                dataType=dataType, 
-                condition=condition,
-                smooth_beta=smooth_beta
-            )
-            beta_weights_masked.append(fmri_masked)
-        beta_weights_masked = np.array(beta_weights_masked)
-        print('beta_weights_masked.shape', beta_weights_masked.shape)
+    num_repetitions_per_run = 4
+    
+    for rp in range(1, num_repetitions_per_run+1):
+        
+        # Check if the RDM of a run's last repetition is non-existent, then 
+        # consider this is a new run entirely. Otherwise just load the saved RDM
+        RDM_fpath = f'{rdm_path}/sub-{sub}_task-{task}_run-{run}' \
+                    f'_rp-{rp}_roi-{roi}_{distance}_{dataType}.npy'
+    
+        if not os.path.exists(RDM_fpath):
+            conditions_of_the_same_rp = conditions[rp-1::num_repetitions_per_run]
+            assert len(conditions_of_the_same_rp) == 8
+            
+            # embedding of the same rp
+            beta_weights_masked = []
+            for condition in conditions_of_the_same_rp:
+                # given beta weights from a task & run & condition 
+                # apply the transformed mask
+                roi, maskROI, fmri_masked = applyMask(
+                    roi=roi, 
+                    roi_path=roi_path,
+                    sub=sub, 
+                    task=task, 
+                    run=run, 
+                    dataType=dataType, 
+                    condition=condition,
+                    smooth_beta=smooth_beta
+                )
+                beta_weights_masked.append(fmri_masked)
+            beta_weights_masked = np.array(beta_weights_masked)
+            print('beta_weights_masked.shape', beta_weights_masked.shape)
 
-    # Either way, return RDM
-    return_RDM(
-        embedding_mtx=beta_weights_masked, 
-        sub=sub, 
-        task=task, 
-        run=run, 
-        roi=roi, 
-        distance=distance
-    )
+        # Either way, return RDM
+        return_RDM(
+            embedding_mtx=beta_weights_masked, 
+            sub=sub, 
+            task=task, 
+            run=run,
+            repetition=rp,
+            roi=roi, 
+            distance=distance,
+            RDM_fpath=RDM_fpath
+        )
 
 
 def kendall_a(a, b):
@@ -335,7 +347,7 @@ def roi_execute(
                                     conditions, smooth_beta, distance
                                 ]
                             )
-        
+                                    
         pool.close()
         pool.join()
                                                         
@@ -390,13 +402,21 @@ if __name__ == '__main__':
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
-    num_conditions = 8
+    num_conditions = 64
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']
     
+    if dataType == 'beta':
+        # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
+        conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
+        
+    elif dataType == 'spmT':
+        # there is no `_rp*_fb` conditions already here in t maps.
+        conditions = [f'{i:04d}' for i in range(1, num_conditions//2+1)]
+        
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
     roi_execute(
@@ -409,7 +429,7 @@ if __name__ == '__main__':
         distances=distances,
         smooth_mask=0.2,
         smooth_beta=2,
-        num_processes=68
+        num_processes=70
     )
     
     # correlate_against_ideal_RDM(
