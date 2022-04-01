@@ -343,7 +343,7 @@ def execute(subs, tasks, runs, n_procs):
 
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm'
+    base_dir = 'glm_run-estimate'
     num_subs = 23
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
