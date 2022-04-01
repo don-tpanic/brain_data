@@ -338,75 +338,7 @@ def roi_execute(
         
         pool.close()
         pool.join()
-                                                            
-
-def rsa_execute(subs, tasks, runs, rois, distances):
-    for roi in rois:
-        for task in tasks:
-            for run in runs:
-                for distance in distances:
-                    
-                    RDMs = []
-                    for sub in subs:
-                        RDM = np.load(
-                           f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-                        )
-                        
-                    RDMs.append(RDM)
-                    # compute correlation between pairs of subjects
-                    for i in range(len(subs)):
-                        for j in range(len(subs)):
-                            if i >= j:
-                                continue
-                            else:
-                                r = compute_RSA(RDMs[i], RDMs[j])
-
-
-def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
-    """
-    """
-    T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
-
-    fig, (img_ax, cbar_ax) = plt.subplots(
-        1,
-        2,
-        gridspec_kw={"width_ratios": [10.0, 0.1], "wspace": 0.0},
-        figsize=(10, 2),
-    )
-    
-    combined_mask = maskROIs[0].dataobj
-    for maskROI in maskROIs[1:]:
-        combined_mask += maskROI.dataobj
-    combined_mask = image.new_img_like(maskROIs[0], combined_mask)
-    
-    cmap = ListedColormap(['red', 'green', 'blue', 'yellow', 'white'])
-    
-    plotting.plot_roi(
-        combined_mask,
-        colorbar=False, 
-        threshold=threshold, 
-        bg_img=T1_path,
-        title=f'',
-        axes=img_ax,
-        cmap=cmap, 
-    )
-    
-    norm = colors.Normalize(vmin=0, vmax=len(maskROIs))
-    cbar = colorbar.ColorbarBase(
-        cbar_ax,
-        ticks=[0.5, 1.5, 2.5, 3.5, 4.5],
-        norm=norm,
-        orientation="vertical",
-        cmap=cmap,
-        spacing="proportional",
-    )
-    cbar_ax.set_yticklabels(['V1', 'V2', 'V3', 'V4', 'LOC'])
-        
-    img_ax.set_title(f'smooth = {smooth}')
-    print(f'[Check] Saved roiMask_smooth={smooth}.png')
-    plt.savefig(f'roiMask_smooth={smooth}.png')
-    plt.close()
-
+                                                        
 
 def visualize_RDM(subs, roi, problem_type, distance):
     """
@@ -450,89 +382,11 @@ def visualize_RDM(subs, roi, problem_type, distance):
     )
     print(f'[Check] plotted.')
 
-
-def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, method, seed=999):
-    """
-    Correlate each subject's RDM to the ideal RDM 
-    of a given type. To better examine the significance of 
-    the correlations, we build in a shuffle mechanism that
-    randomly permutes the entries of the RDM to determine if 
-    the correlation we get during un-shuffled is real.
-    """
-    ideal_RDM = np.ones((num_conditions, num_conditions))
-    ideal_RDM[:4, :4] = 0
-    ideal_RDM[4:, 4:] = 0
-    # ideal_RDM = np.zeros((num_conditions, num_conditions))
-    # ideal_RDM[:4, :4] = 1
-    # ideal_RDM[4:, 4:] = 1
-    
-    run_groups = [[1], [2], [3], [4]]
-        
-    for roi in rois:
-        for runs in run_groups:
-            
-            np.random.seed(seed)
-            
-            all_rho = []  # one per subject-run of a task
-            for shuffle in range(num_shuffles):
-                                
-                for sub in subs:
-                    # average RDM over runs for each sub
-                    sub_RDM = np.zeros((num_conditions, num_conditions))
-                    
-                    for run in runs:
-                        # even sub: Type1 is task2, Type2 is task3
-                        if int(sub) % 2 == 0:
-                            if problem_type == 1:
-                                task = 2
-                            elif problem_type == 2:
-                                task = 3
-                            else:
-                                task = 1
-                        # odd sub: Type1 is task3, Type2 is task2
-                        else:
-                            if problem_type == 1:
-                                task = 3
-                            elif problem_type == 2:
-                                task = 2
-                            else:
-                                task = 1
-                                
-                        RDM = np.load(
-                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-                        )
-                        
-                        if num_shuffles > 1:
-                            shuffle_indices = np.random.choice(
-                                range(RDM.shape[0]), 
-                                size=RDM.shape[0],
-                                replace=False
-                            )
-                            # print(f'shuffle_indices={shuffle_indices}')
-                            RDM = RDM[shuffle_indices, :]
-                        
-                        # print(sub, task, run)
-                        # print(RDM.shape, sub_RDM.shape)
-                        sub_RDM += RDM
-                    # average over runs
-                    sub_RDM /= len(runs)
-                    # compute correlation to the ideal RDM
-                    rho = compute_RSA(sub_RDM, ideal_RDM, method=method)
-                    all_rho.append(rho)
-            print(
-                f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], runs={runs}, ' \
-                f'avg_rho=[{np.mean(all_rho):.2f}], ' \
-                f'std=[{np.std(all_rho):.2f}], ' \
-                f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
-                f'pvalue=[{stats.ttest_1samp(a=all_rho, popmean=0)[1]:.2f}]' \
-            )    
-        print('------------------------------------------------------------------------')
-
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm'
-    rdm_path = 'RDMs'
+    glm_path = 'glm_trial-estimate'
+    rdm_path = 'RDMs_trial-estimate'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
