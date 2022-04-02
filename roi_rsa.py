@@ -567,9 +567,9 @@ if __name__ == '__main__':
     correlate_against_ideal_RDM(
         rois=rois, 
         distance='pearson',
-        problem_type=1,
+        problem_type=2,
         seed=999, 
         num_shuffles=1,
-        method='spearman',
-        dataType=dataType
+        method='kendall_a',
+        dataType='spmT'
     )    
