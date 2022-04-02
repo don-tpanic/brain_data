@@ -340,74 +340,6 @@ def roi_execute(
         pool.join()
                                                             
 
-def rsa_execute(subs, tasks, runs, rois, distances):
-    for roi in rois:
-        for task in tasks:
-            for run in runs:
-                for distance in distances:
-                    
-                    RDMs = []
-                    for sub in subs:
-                        RDM = np.load(
-                           f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-                        )
-                        
-                    RDMs.append(RDM)
-                    # compute correlation between pairs of subjects
-                    for i in range(len(subs)):
-                        for j in range(len(subs)):
-                            if i >= j:
-                                continue
-                            else:
-                                r = compute_RSA(RDMs[i], RDMs[j])
-
-
-def visualize_mask(sub, rois, maskROIs, smooth, threshold=0.00005):
-    """
-    """
-    T1_path = f'{root_path}/Mack-Data/dropbox/sub-{sub}/anat/sub-{sub}_T1w.nii.gz'
-
-    fig, (img_ax, cbar_ax) = plt.subplots(
-        1,
-        2,
-        gridspec_kw={"width_ratios": [10.0, 0.1], "wspace": 0.0},
-        figsize=(10, 2),
-    )
-    
-    combined_mask = maskROIs[0].dataobj
-    for maskROI in maskROIs[1:]:
-        combined_mask += maskROI.dataobj
-    combined_mask = image.new_img_like(maskROIs[0], combined_mask)
-    
-    cmap = ListedColormap(['red', 'green', 'blue', 'yellow', 'white'])
-    
-    plotting.plot_roi(
-        combined_mask,
-        colorbar=False, 
-        threshold=threshold, 
-        bg_img=T1_path,
-        title=f'',
-        axes=img_ax,
-        cmap=cmap, 
-    )
-    
-    norm = colors.Normalize(vmin=0, vmax=len(maskROIs))
-    cbar = colorbar.ColorbarBase(
-        cbar_ax,
-        ticks=[0.5, 1.5, 2.5, 3.5, 4.5],
-        norm=norm,
-        orientation="vertical",
-        cmap=cmap,
-        spacing="proportional",
-    )
-    cbar_ax.set_yticklabels(['V1', 'V2', 'V3', 'V4', 'LOC'])
-        
-    img_ax.set_title(f'smooth = {smooth}')
-    print(f'[Check] Saved roiMask_smooth={smooth}.png')
-    plt.savefig(f'roiMask_smooth={smooth}.png')
-    plt.close()
-
-
 def visualize_RDM(subs, roi, problem_type, distance):
     """
     Visualize RSM instead of RDM due to that's what was done in
@@ -466,62 +398,51 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
     # ideal_RDM = np.zeros((num_conditions, num_conditions))
     # ideal_RDM[:4, :4] = 1
     # ideal_RDM[4:, 4:] = 1
-    
-    run_groups = [[1], [2], [3], [4]]
-        
+            
     for roi in rois:
-        for runs in run_groups:
+        for run in runs:
             
             np.random.seed(seed)
-            
             all_rho = []  # one per subject-run of a task
-            for shuffle in range(num_shuffles):
-                                
+            for shuffle in range(num_shuffles):   
                 for sub in subs:
-                    # average RDM over runs for each sub
-                    sub_RDM = np.zeros((num_conditions // 2, num_conditions // 2))
-                    
-                    for run in runs:
-                        # even sub: Type1 is task2, Type2 is task3
-                        if int(sub) % 2 == 0:
-                            if problem_type == 1:
-                                task = 2
-                            elif problem_type == 2:
-                                task = 3
-                            else:
-                                task = 1
-                        # odd sub: Type1 is task3, Type2 is task2
+
+                    # even sub: Type1 is task2, Type2 is task3
+                    if int(sub) % 2 == 0:
+                        if problem_type == 1:
+                            task = 2
+                        elif problem_type == 2:
+                            task = 3
                         else:
-                            if problem_type == 1:
-                                task = 3
-                            elif problem_type == 2:
-                                task = 2
-                            else:
-                                task = 1
-                                
-                        RDM = np.load(
-                            f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
+                            task = 1
+                            
+                    # odd sub: Type1 is task3, Type2 is task2
+                    else:
+                        if problem_type == 1:
+                            task = 3
+                        elif problem_type == 2:
+                            task = 2
+                        else:
+                            task = 1
+                            
+                    sub_RDM = np.load(
+                        f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
+                    )
+                    
+                    if num_shuffles > 1:
+                        shuffle_indices = np.random.choice(
+                            range(sub_RDM.shape[0]), 
+                            size=sub_RDM.shape[0],
+                            replace=False
                         )
-                        
-                        if num_shuffles > 1:
-                            shuffle_indices = np.random.choice(
-                                range(RDM.shape[0]), 
-                                size=RDM.shape[0],
-                                replace=False
-                            )
-                            # print(f'shuffle_indices={shuffle_indices}')
-                            RDM = RDM[shuffle_indices, :]
-                        
-                        # print(sub, task, run)
-                        # print(RDM.shape, sub_RDM.shape)
-                        sub_RDM += RDM
-                    # average over runs
-                    sub_RDM /= len(runs)
+                        # print(f'shuffle_indices={shuffle_indices}')
+                        sub_RDM = sub_RDM[shuffle_indices, :]
+
                     # compute correlation to the ideal RDM
                     rho = compute_RSA(sub_RDM, ideal_RDM, method=method)
                     all_rho.append(rho)
             print(
-                f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], runs={runs}, ' \
+                f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], run=[{run}], ' \
                 f'avg_rho=[{np.mean(all_rho):.2f}], ' \
                 f'std=[{np.std(all_rho):.2f}], ' \
                 f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
@@ -570,6 +491,6 @@ if __name__ == '__main__':
         problem_type=2,
         seed=999, 
         num_shuffles=1,
-        method='kendall_a',
-        dataType='spmT'
+        method='spearman',
+        dataType='beta'
     )    
