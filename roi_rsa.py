@@ -454,7 +454,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
                         # collects all repetitions of a run and of all subjects
                         all_rho.append(rho)
                 print(
-                    f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], run={run}, rp={rp}, ' \
+                    f'Dist=[{distance}], Type=[{problem_type}], roi=[{roi}], run=[{run}], rp=[{rp}], ' \
                     f'avg_rho=[{np.mean(all_rho):.2f}], ' \
                     f'std=[{np.std(all_rho):.2f}], ' \
                     f't-stats=[{stats.ttest_1samp(a=all_rho, popmean=0)[0]:.2f}], ' \
@@ -508,6 +508,6 @@ if __name__ == '__main__':
         seed=999, 
         num_shuffles=1,
         method='spearman',
-        dataType=dataType,
+        dataType='spmT',
         conditions=conditions
     )    
