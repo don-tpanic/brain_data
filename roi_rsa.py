@@ -469,7 +469,7 @@ if __name__ == '__main__':
     rdm_path = 'RDMs_trial-estimate'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
-    dataType = 'beta'
+    dataType = 'spmT'
     num_conditions = 64
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
