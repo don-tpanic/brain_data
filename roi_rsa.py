@@ -454,7 +454,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
-    rdm_path = 'RDMs'
+    rdm_path = 'subject_RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
