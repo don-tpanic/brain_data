@@ -469,10 +469,10 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    rdm_path = 'RDMs_trial-estimate'
+    rdm_path = 'subject_RDMs'
     rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
-    dataType = 'spmT'
+    dataType = 'beta'
     num_conditions = 64
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
@@ -491,26 +491,26 @@ if __name__ == '__main__':
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType=dataType,
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=70
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='pearson',
-        problem_type=1,
-        seed=999, 
-        num_shuffles=1,
-        method='spearman',
-        dataType='spmT',
-        conditions=conditions
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=70
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=1,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='spearman',
+    #     dataType='spmT',
+    #     conditions=conditions
+    # )    
