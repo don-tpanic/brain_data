@@ -79,7 +79,7 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     merge some left&right masks and smooth them.
     """
     print(f'[Check] running `merge_n_smooth_mask`')
-    if not os.path.exists(f'{roi_path}/mask-{roi}_T1.nii.gz'):
+    if not os.path.exists(f'{roi_path}/mask-{roi}.nii.gz'):
 
         if 'HPC' not in roi:
             roi_number_mapping = {
@@ -103,7 +103,7 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
         )
     
     else:
-        print(f'[Check] mask-{roi}_T1 already done, skip')
+        print(f'[Check] mask-{roi} already done, skip')
         
     
 def transform_mask_MNI_to_T1(sub, roi, roi_path):
@@ -115,7 +115,7 @@ def transform_mask_MNI_to_T1(sub, roi, roi_path):
     in standard MNI space.
     """
     print(f'[Check] running `transform_mask_MNI_to_T1`')
-    if not os.path.exists(f'{roi_path}/mask-{roi}_T1.nii.gz'):
+    if not os.path.exists(f'{roi_path}/mask-{roi}_T1_sub-{sub}.nii.gz'):
         print(f'[Check] transform roi mask to subject{sub} T1 space')
         at = ants.ApplyTransforms()
         
@@ -127,7 +127,7 @@ def transform_mask_MNI_to_T1(sub, roi, roi_path):
         at.inputs.dimension = 3
         at.inputs.input_image = f'{roi_path}/mask-{roi}.nii.gz'
         at.inputs.reference_image = f'{reference_image_path}/sub-{sub}_T1w.nii.gz'
-        at.inputs.output_image = f'{roi_path}/mask-{roi}_T1.nii.gz'
+        at.inputs.output_image = f'{roi_path}/mask-{roi}_T1_sub-{sub}.nii.gz'
         at.inputs.interpolation = 'NearestNeighbor'
         at.inputs.default_value = 0
         at.inputs.transforms = [f'{transform_path}/sub-{sub}_from-MNI152NLin2009cAsym_to-T1w_mode-image_xfm.h5']
@@ -157,7 +157,7 @@ def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
             f'{glm_path}/datasink/1stLevel/{output_path}/{dataType}_{condition}.nii'
     
     imgs = nb.load(data_path)
-    maskROI = nb.load(f'{roi_path}/mask-{roi}_T1.nii.gz')
+    maskROI = nb.load(f'{roi_path}/mask-{roi}_T1_sub-{sub}.nii.gz')
     maskROI = nl.image.resample_img(
         maskROI, 
         target_affine=imgs.affine,
