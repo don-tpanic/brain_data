@@ -138,7 +138,7 @@ def transform_mask_MNI_to_T1(sub, roi, roi_path):
         print(f'[Check] mask-{roi}_T1 Already done, skip')
      
 
-def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
+def applyMask(roi, root_path, glm_path, roi_path, sub, task, run, dataType, condition, smooth_beta):
     """
     Apply ROI mask (T1 space) to subject's whole brain beta weights.
     
@@ -202,7 +202,7 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance, RDM_fpath):
         print(f'[Check] Already exists, {RDM_fpath}')
     
 
-def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smooth_beta, distance):
+def applyMask_returnRDM(roi, root_path, glm_path, roi_path, sub, task, run, dataType, conditions, smooth_beta, distance):
     """
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
@@ -229,6 +229,8 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
                 # apply the transformed mask
                 roi, maskROI, fmri_masked = applyMask(
                     roi=roi, 
+                    root_path=root_path,
+                    glm_path=glm_path,
                     roi_path=roi_path,
                     sub=sub, 
                     task=task, 
@@ -341,7 +343,7 @@ def roi_execute(
                             results = pool.apply_async(
                                 applyMask_returnRDM, 
                                 args=[
-                                    roi, roi_path, sub, task, run, dataType, 
+                                    roi, root_path, glm_path, roi_path, sub, task, run, dataType, 
                                     conditions, smooth_beta, distance
                                 ]
                             )
