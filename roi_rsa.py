@@ -106,7 +106,7 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
         print(f'[Check] mask-{roi} already done, skip')
         
     
-def transform_mask_MNI_to_T1(sub, roi, roi_path):
+def transform_mask_MNI_to_T1(sub, roi, roi_path, root_path):
     """
     Given a subject and a ROI, 
     transform ROI mask from MNI space to subject's T1 space.
@@ -333,7 +333,7 @@ def roi_execute(
             merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=smooth_mask)
             
             for sub in subs:
-                transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path, root_path=root_path)
                 
                 for task in tasks:
                     for run in runs:
