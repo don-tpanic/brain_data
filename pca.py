@@ -102,7 +102,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
             for task in tasks:
                 for sub in subs:
                     # done once for each sub
-                    transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                    transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path, root_path=root_path)
                     
                     # per (sub, task, run) compression
                     res_obj = pool.apply_async(
@@ -177,7 +177,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'vmPFC'
+    roi = 'vmPFC_sph10'
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64
