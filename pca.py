@@ -182,113 +182,17 @@ def compression_execute_v1(roi, subs, runs, tasks, num_processes):
     x = compression_results['x']
     y = compression_results['y']
     hue = compression_results['hue']
-    means = compression_results['means']
     print(x, '\n\n')
     print(y)
     assert len(x) == len(y), f"Unequal length of x, y, x={len(x)}, y={len(y)}"
     palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
-    sns.violinplot(x=x, y=y, hue=hue, palette=palette)
-    ax.axhline(y=0)
-    # ax.scatter(range(len(means)), means)
+    sns.swarmplot(x=x, y=y, hue=hue, palette=palette, dodge=True, size=3.2)
+    
     ax.set_xticks([0, 1, 2, 3])
     ax.set_xticklabels([1, 2, 3, 4])
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel('vmPFC Compression')
     plt.savefig('compression_results.png')
-
-
-def compression_execute(roi, subs, runs, tasks, num_processes):
-    """
-    Top-level execute that apply PCA, get top k, 
-    compute compression score and plot for all subs, runs, tasks.
-    """
-    if not os.path.exists('compression_results.npy'):
-        with multiprocessing.Pool(num_processes) as pool:
-            if 'HPC' in roi:
-                roi_path = 'ROIs/HPC'
-            elif 'vmPFC' in roi:
-                roi_path = 'ROIs/vmPFC'
-            else:
-                roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
-            
-            # compute & collect compression
-            run2type2metric = defaultdict(lambda: defaultdict(list))
-            for run in runs:
-                for task in tasks:
-                    for sub in subs:
-                        # done once for each sub
-                        transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path, root_path=root_path)
-                        
-                        # per (sub, task, run) compression
-                        res_obj = pool.apply_async(
-                            apply_PCA, 
-                            args=[
-                                roi, root_path, glm_path, roi_path, 
-                                sub, task, run, 
-                                dataType, conditions, smooth_beta
-                            ]
-                        )
-                                            
-                        if int(sub) % 2 == 0:
-                            if task == 2:
-                                problem_type = 1
-                            elif task == 3:
-                                problem_type = 2
-                            else:
-                                problem_type = 6
-                                
-                        # odd sub: Type1 is task3
-                        else:
-                            if task == 2:
-                                problem_type = 2
-                            elif task == 3:
-                                problem_type = 1
-                            else:
-                                problem_type = 6
-                        
-                        # Notice res_obj.get() = compression
-                        # To enable multiproc, we extract the actual
-                        # compression score when plotting later.
-                        run2type2metric[run][problem_type].append(res_obj)
-            
-            pool.close()
-            pool.join()
-        
-        for run in runs:
-            print(f'--------- run {run} ---------')
-            type2metric = run2type2metric[run]
-            num_types = len(type2metric.keys())
-            problem_types = sorted(list(type2metric.keys()))
-            print(f'num_types={num_types}')
-            
-            for z in range(num_types):
-                problem_type = problem_types[z]
-                # here we extract a list of res_obj and 
-                # extract the actual compression scores.
-                list_of_res_obj = type2metric[problem_type]
-                # `metrics` is all scores over subs for one (problem_type, run)
-                metrics = [res_obj.get() for res_obj in list_of_res_obj]
-                means.append(np.mean(metrics))
-                metrics = list(metrics - np.mean(metrics))
-                x.extend([f'{run}'] * num_subs)
-                y.extend(metrics)
-                hue.extend([f'Type {problem_type}'] * num_subs)
-
-        compression_results = {}
-        compression_results['x'] = x
-        compression_results['y'] = y
-        compression_results['hue'] = hue
-        compression_results['means'] = means
-        np.save('compression_results.npy', compression_results)
-    
-    else:
-        # load presaved results dictionary.
-        compression_results = np.load('compression_results.npy', allow_pickle=True).ravel()[0]
-
-    ax.set_xlabel('Learning Blocks')
-    ax.set_ylabel('vmPFC Compression')
-    plt.savefig('compression_results.png')
-
 
 
 if __name__ == '__main__':    
@@ -310,7 +214,7 @@ if __name__ == '__main__':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    compression_execute(
+    compression_execute_v1(
         roi=roi, 
         subs=subs, 
         runs=runs, 
