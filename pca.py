@@ -179,21 +179,45 @@ def compression_execute_v1(roi, subs, runs, tasks, num_processes):
         # load presaved results dictionary.
         compression_results = np.load('compression_results.npy', allow_pickle=True).ravel()[0]
 
-    # plot violinplots
+    # plot violinplots / stripplots
     fig, ax = plt.subplots()
     x = compression_results['x']
     y = compression_results['y']
     hue = compression_results['hue']
     means = compression_results['means']
-    print(x, '\n\n')
-    print(y)
-    print(means)
-    assert len(x) == len(y), f"Unequal length of x, y, x={len(x)}, y={len(y)}"
     palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
-    # sns.swarmplot(x=x, y=y, hue=hue, palette=palette, dodge=True, size=3.2)
-    sns.violinplot(x=x, y=y, hue=hue, palette=palette)
-    ax.set_xticks([0, 1, 2, 3])
-    ax.set_xticklabels([1, 2, 3, 4])
+    ax = sns.stripplot(x=x, y=y, hue=hue, palette=palette, dodge=True, alpha=0.8, jitter=0.3, size=4)
+    
+    # plot mean/median
+    num_bars = int(len(y) / (num_subs))
+    positions = []
+    margin = 0.24
+    problem_types = [1, 2, 6]
+    for per_run_center in ax.get_xticks():
+        positions.append(per_run_center-margin)
+        positions.append(per_run_center)
+        positions.append(per_run_center+margin)
+    
+    # global_index: 0-11
+    labels = []
+    for global_index in range(num_bars):
+        # within_run_index: 0-2
+        within_run_index = global_index % len(problem_types)
+        problem_type = problem_types[within_run_index]
+        
+        # data
+        per_type_data = y[ global_index * num_subs : (global_index+1) * num_subs ]
+        position = [positions[global_index]]
+        
+        q1, md, q3 = np.percentile(per_type_data, [25,50,75])
+        mean = np.mean(per_type_data)
+        median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3)
+        mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3)
+    
+    # hacky way getting legend
+    median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3, label='median')
+    mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3, label='mean')
+    plt.legend()
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel('vmPFC Compression')
     plt.savefig('compression_results_v1.png')
@@ -367,7 +391,7 @@ if __name__ == '__main__':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    compression_execute(
+    compression_execute_v1(
         roi=roi, 
         subs=subs, 
         runs=runs, 
