@@ -85,12 +85,12 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     return neural_compression(k=k)
         
 
-def compression_execute_v1(roi, subs, runs, tasks, num_processes):
+def compression_execute(roi, subs, runs, tasks, num_processes):
     """
     Top-level execute that apply PCA, get top k, 
     compute compression score and plot for all subs, runs, tasks.
     """
-    if not os.path.exists('compression_results.npy'):
+    if not os.path.exists(f'compression_results/{roi}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
             if 'HPC' in roi:
                 roi_path = 'ROIs/HPC'
@@ -173,11 +173,11 @@ def compression_execute_v1(roi, subs, runs, tasks, num_processes):
         compression_results['y'] = y
         compression_results['hue'] = hue
         compression_results['means'] = means
-        np.save('compression_results.npy', compression_results)
+        np.save(f'compression_results/{roi}.npy', compression_results)
     
     else:
         # load presaved results dictionary.
-        compression_results = np.load('compression_results.npy', allow_pickle=True).ravel()[0]
+        compression_results = np.load(f'compression_results/{roi}.npy', allow_pickle=True).ravel()[0]
 
     # plot violinplots / stripplots
     fig, ax = plt.subplots()
@@ -220,155 +220,7 @@ def compression_execute_v1(roi, subs, runs, tasks, num_processes):
     plt.legend()
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel('vmPFC Compression')
-    plt.savefig('compression_results_v1.png')
-    
-
-def compression_execute(roi, subs, runs, tasks, num_processes):
-    """
-    Top-level execute that apply PCA, get top k, 
-    compute compression score and plot for all subs, runs, tasks.
-    """
-    if not os.path.exists('compression_results.npy'):
-        with multiprocessing.Pool(num_processes) as pool:
-            if 'HPC' in roi:
-                roi_path = 'ROIs/HPC'
-            elif 'vmPFC' in roi:
-                roi_path = 'ROIs/vmPFC'
-            else:
-                roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
-            
-            # compute & collect compression
-            run2type2metric = defaultdict(lambda: defaultdict(list))
-            for run in runs:
-                for task in tasks:
-                    for sub in subs:
-                        # done once for each sub
-                        transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path, root_path=root_path)
-                        
-                        # per (sub, task, run) compression
-                        res_obj = pool.apply_async(
-                            apply_PCA, 
-                            args=[
-                                roi, root_path, glm_path, roi_path, 
-                                sub, task, run, 
-                                dataType, conditions, smooth_beta
-                            ]
-                        )
-                                            
-                        if int(sub) % 2 == 0:
-                            if task == 2:
-                                problem_type = 1
-                            elif task == 3:
-                                problem_type = 2
-                            else:
-                                problem_type = 6
-                                
-                        # odd sub: Type1 is task3
-                        else:
-                            if task == 2:
-                                problem_type = 2
-                            elif task == 3:
-                                problem_type = 1
-                            else:
-                                problem_type = 6
-                        
-                        # Notice res_obj.get() = compression
-                        # To enable multiproc, we extract the actual
-                        # compression score when plotting later.
-                        run2type2metric[run][problem_type].append(res_obj)
-            
-            pool.close()
-            pool.join()
-        
-        # save & plot compression results
-        # ref: https://stackoverflow.com/questions/68629457/seaborn-grouped-violin-plot-without-pandas
-        x = []    # each sub's run
-        y = []    # each sub problem_type's compression
-        hue = []  # each sub problem_type
-        means = []
-        for run in runs:
-            print(f'--------- run {run} ---------')
-            type2metric = run2type2metric[run]
-            num_types = len(type2metric.keys())
-            problem_types = sorted(list(type2metric.keys()))
-            print(f'num_types={num_types}')
-            
-            for z in range(num_types):
-                problem_type = problem_types[z]
-                # here we extract a list of res_obj and 
-                # extract the actual compression scores.
-                list_of_res_obj = type2metric[problem_type]
-                # `metrics` is all scores over subs for one (problem_type, run)
-                metrics = [res_obj.get() for res_obj in list_of_res_obj]
-                # metrics = list(metrics - np.mean(metrics))
-                x.extend([f'{run}'] * num_subs)
-                y.extend(metrics)
-                hue.extend([f'Type {problem_type}'] * num_subs)
-
-        compression_results = {}
-        compression_results['x'] = x
-        compression_results['y'] = y
-        compression_results['hue'] = hue
-        np.save('compression_results.npy', compression_results)
-    
-    else:
-        # load presaved results dictionary.
-        compression_results = np.load('compression_results.npy', allow_pickle=True).ravel()[0]
-
-    # plot violinplots
-    fig, ax = plt.subplots()
-    y = compression_results['y']
-    num_bars = int(len(y) / (num_subs))
-    positions = [0,1,2, 4,5,6, 8,9,10, 12,13,14]
-    problem_types = [1, 2, 6]
-    colors = ['pink', 'green', 'blue']
-    
-    # global_index: 0-11
-    labels = []
-    for global_index in range(num_bars):
-        # within_run_index: 0-2
-        within_run_index = global_index % len(problem_types)
-        problem_type = problem_types[within_run_index]
-        
-        # data
-        per_type_data = y[ global_index * num_subs : (global_index+1) * num_subs ]
-        position = [positions[global_index]]
-        # print(position, np.mean(per_type_data), problem_type)
-        
-        q1, md, q3 = np.percentile(per_type_data, [25,50,75])
-        mean = np.mean(per_type_data)
-        median_obj = ax.scatter(position, md, marker='o', color='red', s=14, zorder=3)
-        mean_obj = ax.scatter(position, mean, marker='^', color='blue', s=14, zorder=3)
-        ax.vlines(position, q1, q3, color='k', linestyle='-', lw=2)
-        
-        violin_obj = ax.violinplot(
-            positions=position,
-            dataset=per_type_data,
-            showextrema=False
-        )
-        
-        # change each violin color based on `problem_type`
-        violin_obj['bodies'][0].set_facecolor(colors[within_run_index])
-        
-        # enable legend for violins
-        if global_index in range(num_bars)[-3:]:
-            def add_label(plot_obj, label):
-                import matplotlib.patches as mpatches
-                color = plot_obj["bodies"][0].get_facecolor().flatten()
-                labels.append((mpatches.Patch(color=color), label))
-            add_label(violin_obj, label=f'Type {problem_type}')            
-    
-    # # hack to get one set of legends
-    # ax.scatter(position, md, marker='o', color='red', s=14, zorder=3, label='median')
-    # ax.scatter(position, mean, marker='^', color='blue', s=14, zorder=3, label='mean')
-    # adjust xticks
-    ax.set_xticks([1, 5, 9, 13])
-    ax.set_xticklabels([1, 2, 3, 4])
-    ax.set_xlabel('Learning Blocks')
-    ax.set_ylabel('vmPFC Compression')
-    plt.legend(*zip(*labels))
-    plt.tight_layout()
-    plt.savefig('compression_results.png')
+    plt.savefig(f'compression_results/{roi}.png')
 
 
 if __name__ == '__main__':    
@@ -391,7 +243,7 @@ if __name__ == '__main__':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    compression_execute_v1(
+    compression_execute(
         roi=roi, 
         subs=subs, 
         runs=runs, 
