@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from numpy import mean
+import scipy.stats as stats
 import pandas as pd
 import multiprocessing
 import seaborn as sns
@@ -198,8 +198,9 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         positions.append(per_run_center)
         positions.append(per_run_center+margin)
     
-    # global_index: 0-11
     labels = []
+    final_run_data = []  # for t-test
+    # global_index: 0-11
     for global_index in range(num_bars):
         # within_run_index: 0-2
         within_run_index = global_index % len(problem_types)
@@ -213,6 +214,18 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         mean = np.mean(per_type_data)
         median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3)
         mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3)
+        
+        if global_index in range(num_bars)[-3:]:
+            print(global_index)
+            final_run_data.append(per_type_data)
+    
+    # independent t-test on the last run's 3 problem_types:
+    for i in range(len(final_run_data)):
+        for j in range(len(final_run_data)):
+            if i >= j:
+                continue
+            print(f'Type {problem_types[i]} vs {problem_types[j]}')
+            print(stats.ttest_ind(final_run_data[i], final_run_data[j]))
     
     # hacky way getting legend
     median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3, label='median')
