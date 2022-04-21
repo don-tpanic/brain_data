@@ -5,7 +5,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from sklearn.decomposition import PCA
-from roi_rsa import applyMask
+from roi_rsa import transform_mask_MNI_to_T1, applyMask
 
 """Reproducing key results from Mack et al., 2020
 1. Figure2b results: neural compression against learning blocks across 
@@ -72,7 +72,7 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
             print(
                 f'explained_variance_cumu_={explained_variance_cumu_}, k={k}'
             )
-            return k
+            return neural_compression(k=k)
         else:
             explained_variance_cumu_ += explained_variance_ratio[k]
             k += 1
@@ -80,8 +80,7 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     print(
         f'explained_variance_cumu_={explained_variance_cumu_}, k={k}'
     )
-    compression = neural_compression(k=k)
-    return compression
+    return neural_compression(k=k)
         
 
 def compression_execute(roi, subs, runs, tasks, num_processes):
@@ -90,17 +89,21 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     compute compression score and plot for all subs, runs, tasks.
     """
     with multiprocessing.Pool(num_processes) as pool:
-
-        if 'HPC' not in roi:
-                roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
-        else:
+        if 'HPC' in roi:
             roi_path = 'ROIs/HPC'
+        elif 'vmPFC' in roi:
+            roi_path = 'ROIs/vmPFC'
+        else:
+            roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         
         # compute & collect compression
         run2type2metric = defaultdict(lambda: defaultdict(list))
         for run in runs:
             for task in tasks:
                 for sub in subs:
+                    # done once for each sub
+                    transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                    
                     # per (sub, task, run) compression
                     res_obj = pool.apply_async(
                         apply_PCA, 
@@ -110,7 +113,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
                             dataType, conditions, smooth_beta
                         ]
                     )
-                    
+                                        
                     if int(sub) % 2 == 0:
                         if task == 2:
                             problem_type = 1
@@ -155,10 +158,6 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
             # extract the actual compression scores.
             list_of_res_obj = type2metric[problem_type]
             metrics = [res_obj.get() for res_obj in list_of_res_obj]
-            # TODO: how did Mike mean-center?
-            # metrics = list(
-            #     (metrics - np.mean(metrics)) / (np.max(metrics) - np.min(metrics))
-            # )
             x.extend([f'{run}'] * num_subs)
             y.extend(metrics)
             hue.extend([f'Type {problem_type}'] * num_subs)
@@ -178,7 +177,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'LHHPC'
+    roi = 'vmPFC'
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64
