@@ -162,7 +162,7 @@ def compression_execute_v1(roi, subs, runs, tasks, num_processes):
                 list_of_res_obj = type2metric[problem_type]
                 # `metrics` is all scores over subs for one (problem_type, run)
                 metrics = [res_obj.get() for res_obj in list_of_res_obj]
-                metrics = list(metrics - np.mean(metrics))
+                # metrics = list(metrics - np.mean(metrics))
                 means.append(np.mean(metrics))
                 x.extend([f'{run}'] * num_subs)
                 y.extend(metrics)
@@ -300,7 +300,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
                 list_of_res_obj = type2metric[problem_type]
                 # `metrics` is all scores over subs for one (problem_type, run)
                 metrics = [res_obj.get() for res_obj in list_of_res_obj]
-                metrics = list(metrics - np.mean(metrics))
+                # metrics = list(metrics - np.mean(metrics))
                 x.extend([f'{run}'] * num_subs)
                 y.extend(metrics)
                 hue.extend([f'Type {problem_type}'] * num_subs)
