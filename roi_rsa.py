@@ -57,13 +57,12 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask=False):
             h = 'r'
                         
         maths.inputs.in_file = f'{roi_path}/HIPP_BODY_{h}h.nii.gz'
-        maths.inputs.op_string = '-add %s -add %s -add %s ' 
+        maths.inputs.op_string = '-add %s -add %s ' 
         if smooth_mask:
             maths.inputs.op_string += f'-s {smooth_mask}'
         maths.inputs.op_string += ' -bin '
         
         maths.inputs.operand_files = [
-            f'{roi_path}/HIPP_BODY_{h}h.nii.gz',            # BUG: BODY is repeated
             f'{roi_path}/HIPP_HEAD_{h}h.nii.gz',
             f'{roi_path}/HIPP_TAIL_{h}h.nii.gz'
         ]
@@ -490,7 +489,8 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
     rdm_path = 'subject_RDMs'
-    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
+    # rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
+    rois = ['RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64
