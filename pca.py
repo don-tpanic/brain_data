@@ -181,6 +181,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         np.save(f'compression_results/{roi}.npy', compression_results)
     
     else:
+        print('[NOTE] Loading saved results, make sure it does not need update.')
         # load presaved results dictionary.
         compression_results = np.load(f'compression_results/{roi}.npy', allow_pickle=True).ravel()[0]
 
@@ -207,8 +208,10 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     final_run_data = []  # for t-test
     # global_index: 0-11
     for global_index in range(num_bars):
+        # run: 1-4
+        run = global_index // len(problem_types) + 1
         # within_run_index: 0-2
-        within_run_index = global_index % len(problem_types)
+        within_run_index = global_index % len(problem_types)        
         problem_type = problem_types[within_run_index]
         
         # data
@@ -217,11 +220,17 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         
         q1, md, q3 = np.percentile(per_type_data, [25,50,75])
         mean = np.mean(per_type_data)
+        std = np.std(per_type_data)
         median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3)
         mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3)
         
+        # print out stats
+        print(f'Type=[{problem_type}], run=[{run}], mean=[{mean:.3f}], std=[{std:.3f}]')
+        if within_run_index == 2:
+            print('-'*60)
+        
         if global_index in range(num_bars)[-3:]:
-            print(global_index)
+            # print(global_index)
             final_run_data.append(per_type_data)
     
     # independent t-test on the last run's 3 problem_types:
@@ -237,14 +246,15 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3, label='mean')
     plt.legend()
     ax.set_xlabel('Learning Blocks')
-    ax.set_ylabel('vmPFC Compression')
+    ax.set_ylabel(f'{roi} Compression')
+    plt.title(f'ROI: {roi}')
     plt.savefig(f'compression_results/{roi}.png')
 
 
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'vmPFC'
+    roi = 'vmPFC_sph10'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
