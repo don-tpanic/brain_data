@@ -7,7 +7,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from sklearn.decomposition import PCA
-from roi_rsa import transform_mask_MNI_to_T1, applyMask
+from roi_rsa import merge_n_smooth_mask, transform_mask_MNI_to_T1, applyMask
 
 """Reproducing key results from Mack et al., 2020
 1. Figure2b results: neural compression against learning blocks across 
@@ -97,7 +97,12 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
             elif 'vmPFC' in roi:
                 roi_path = 'ROIs/vmPFC'
             else:
+                # V1,2,3,1-4, LOC, LHLOC,RHLOC
                 roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+            
+            # Do it once for one ROI mask (MNI)
+            # Will skip if already exists
+            merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=False)
             
             # compute & collect compression
             run2type2metric = defaultdict(lambda: defaultdict(list))
@@ -239,7 +244,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'vmPFC_sph10'
+    roi = 'vmPFC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
