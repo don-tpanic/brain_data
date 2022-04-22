@@ -24,13 +24,14 @@ from utils import convert_dcnnCoding_to_subjectCoding, reorder_RDM_entries_into_
 2. Perform RSA
 """
 
-def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
+def run_ants_command(roi, roi_path, roi_nums, smooth_mask=False):
     """
     Helper function that automatically grabs files to prepare 
     for the final ants command.
     """
     maths = MultiImageMaths()
     
+    # V1,2,3,1-3,4,LOC (left+right)
     if roi_nums is not None:
         all_files = []
         for roi_num in roi_nums:
@@ -49,7 +50,7 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
         maths.inputs.operand_files = all_files[1:]
     
     # HPC
-    else:
+    elif 'HHPC' in roi:
         if 'LH' in roi:
             h = 'l'
         else:
@@ -62,11 +63,29 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
         maths.inputs.op_string += ' -bin '
         
         maths.inputs.operand_files = [
-            f'{roi_path}/HIPP_BODY_{h}h.nii.gz',
+            f'{roi_path}/HIPP_BODY_{h}h.nii.gz',            # BUG: BODY is repeated
             f'{roi_path}/HIPP_HEAD_{h}h.nii.gz',
             f'{roi_path}/HIPP_TAIL_{h}h.nii.gz'
         ]
+    
+    # LHLOC, RHLOC
+    elif 'HLOC' in roi:
+        if 'LH' in roi:
+            h = 'l'
+        else:
+            h = 'r'
         
+        # WARNING: hardcoded roi_num
+        maths.inputs.in_file = f'{roi_path}/perc_VTPM_vol_roi14_{h}h.nii.gz'
+        maths.inputs.op_string = '-add %s ' 
+        if smooth_mask:
+            maths.inputs.op_string += f'-s {smooth_mask}'
+        maths.inputs.op_string += ' -bin '
+        
+        maths.inputs.operand_files = [
+            f'{roi_path}/perc_VTPM_vol_roi15_{h}h.nii.gz'
+        ]
+    
     maths.inputs.out_file = f'{roi_path}/mask-{roi}.nii.gz'
     runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
     print(f'runCmd = {runCmd}')
@@ -80,8 +99,12 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     """
     print(f'[Check] running `merge_n_smooth_mask`')
     if not os.path.exists(f'{roi_path}/mask-{roi}.nii.gz'):
-
-        if 'HPC' not in roi:
+        
+        if roi in ['LHHPC', 'RHHPC', 'LHLOC', 'RHLOC']:
+            # If the above ROI, there is no left+right merge
+            roi_nums = None
+        else:
+            # Will need to merge left+right
             roi_number_mapping = {
                 'V1': [1, 2],
                 'V2': [3, 4],
@@ -91,9 +114,6 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
                 'LOC': [14, 15]
             }
             roi_nums = roi_number_mapping[roi]
-        
-        else:
-            roi_nums = None
         
         run_ants_command(
             roi=roi, 
