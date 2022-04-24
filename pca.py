@@ -37,6 +37,8 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     # embedding mtx (rp, roi_size)
     beta_weights_masked = []
     for rp in range(1, num_repetitions_per_run+1):
+        # NOTE: not necessary as order does not matter.
+        # we keep this because it is consistent with `roi_rsa.py`
         conditions_of_the_same_rp = conditions[rp-1::num_repetitions_per_run]
         assert len(conditions_of_the_same_rp) == 8
     
@@ -57,7 +59,7 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
             )
             beta_weights_masked.append(fmri_masked)
     
-    # (n_voxels, n_trials)
+    # (n_voxels, n_trials), where n_trials = 32 in a run.
     beta_weights_masked = np.array(beta_weights_masked).T
     print('beta_weights_masked.shape', beta_weights_masked.shape)
     
