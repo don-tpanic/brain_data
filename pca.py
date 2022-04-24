@@ -94,10 +94,13 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     """
     if not os.path.exists(f'compression_results/{roi}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
+            
             if 'HPC' in roi:
                 roi_path = 'ROIs/HPC'
+                    
             elif 'vmPFC' in roi:
                 roi_path = 'ROIs/vmPFC'
+                
             else:
                 # V1,2,3,1-4, LOC, LHLOC,RHLOC
                 roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
