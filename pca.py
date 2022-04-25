@@ -1,12 +1,14 @@
 import os
-import numpy as np
-import scipy.stats as stats
-import pandas as pd
 import multiprocessing
+from collections import defaultdict
+
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
 import seaborn as sns
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from sklearn.decomposition import PCA
+
 from roi_rsa import merge_n_smooth_mask, transform_mask_MNI_to_T1, applyMask
 
 """Reproducing key results from Mack et al., 2020
@@ -256,6 +258,89 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     plt.savefig(f'compression_results/{roi}.png')
 
 
+def mixed_effects_analysis(roi):
+    """
+    Perform a two-way ANOVA analysis as an alternative of 
+    the bayesian mixed effect analysis in Mack et al., 2020.
+    
+    Independent variable: 
+        problem_type, learning_block, interaction
+    Dependent variable:
+        compression score
+    """
+    import pingouin as pg
+    if not os.path.exists(f"compression_results/{roi}.csv"):
+        subjects = ['subject']
+        types = ['problem_type']
+        learning_blocks = ['learning_block']
+        compression_scores = ['compression_score']
+
+        compression_results = np.load(
+            f'compression_results/{roi}.npy', allow_pickle=True
+        ).ravel()[0]
+        y = compression_results['y']
+        num_bars = int(len(y) / (num_subs))
+        problem_types = [1, 2, 6]
+        
+        # global_index: 0-11
+        for global_index in range(num_bars):
+            # run: 1-4 i.e. learning block
+            run = global_index // len(problem_types) + 1
+            # within_run_index: 0-2
+            within_run_index = global_index % len(problem_types)        
+            problem_type = problem_types[within_run_index]
+            print(f'run={run}, type={problem_type}')
+            
+            # data
+            per_type_data = y[ global_index * num_subs : (global_index+1) * num_subs ]
+            
+            for s in range(num_subs):
+                sub = subs[s]
+                subjects.append(sub)
+                types.append(problem_type)
+                learning_blocks.append(run)
+                compression_scores.append(per_type_data[s])
+            
+        subjects = np.array(subjects)
+        types = np.array(types)
+        learning_blocks = np.array(learning_blocks)
+        compression_scores = np.array(compression_scores)
+        
+        df = np.vstack((
+            subjects, 
+            types, 
+            learning_blocks, 
+            compression_scores
+        )).T
+        pd.DataFrame(df).to_csv(
+            f"compression_results/{roi}.csv", 
+            index=False, 
+            header=False
+        )
+        
+    else:
+        df = pd.read_csv(f"compression_results/{roi}.csv")
+        
+    # sns.stripplot(
+    #     x='learning_block',
+    #     y='compression_score',
+    #     hue='problem_type',
+    #     data=df,
+    #     dodge=True
+    # )
+    # plt.savefig('test.png')
+    
+    # two-way ANOVA:
+    res = pg.rm_anova(
+        dv='compression_score',
+        within=['problem_type', 'learning_block'],
+        subject='subject',
+        data=df, 
+    )
+    print(res)
+        
+                
+        
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -276,12 +361,14 @@ if __name__ == '__main__':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    compression_execute(
-        roi=roi, 
-        subs=subs, 
-        runs=runs, 
-        tasks=tasks, 
-        num_processes=num_processes
-    )
+    # compression_execute(
+    #     roi=roi, 
+    #     subs=subs, 
+    #     runs=runs, 
+    #     tasks=tasks, 
+    #     num_processes=num_processes
+    # )
     
+    mixed_effects_analysis(roi=roi)
+
     
