@@ -22,7 +22,7 @@ Here, (before doing cv-PCA), we make minimum changes to Mack 2020
 implementation to simply perform PCA on the average over last 3 runs.
 """    
     
-def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, conditions, smooth_beta):
+def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, conditions, smooth_beta, centering_by):
     """
     Apply PCA onto an embedding matrix of (n_voxels, n_trials) of a given (roi, sub, task) averaged
     over runs, where the columns are beta weights of a given roi of a given trial.
@@ -76,16 +76,22 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
         np.array(averaged_embedding_matrix), axis=0
     )
     
-    # mean-center (by row)
-    # NOTE: sklearn PCA default is by column.
-    row_mean = np.mean(averaged_embedding_matrix, axis=1).reshape(-1, 1)
-    averaged_embedding_matrix -= row_mean
+    if centering_by == 'row':
+        # mean-center (by row)
+        # NOTE: sklearn PCA default is by column.
+        row_mean = np.mean(averaged_embedding_matrix, axis=1).reshape(-1, 1)
+        averaged_embedding_matrix -= row_mean
+        
+        # SVD
+        U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
+        explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
+        total_var = explained_variance_.sum()
+        explained_variance_ratio = explained_variance_ / total_var
     
-    # SVD
-    U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
-    explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
-    total_var = explained_variance_.sum()
-    explained_variance_ratio = explained_variance_ / total_var
+    elif centering_by == 'col':
+        pca = PCA(n_components=averaged_embedding_matrix.shape[1], random_state=42)
+        pca.fit(averaged_embedding_matrix)
+        explained_variance_ratio = pca.explained_variance_ratio_
     
     # return the k PCs that explain at least 90% variance
     k = 0
@@ -137,7 +143,7 @@ def execute(roi, subs, tasks, num_processes):
                         args=[
                             roi, root_path, glm_path, roi_path, 
                             sub, task, 
-                            dataType, conditions, smooth_beta
+                            dataType, conditions, smooth_beta, centering_by
                         ]
                     )
                                                             
@@ -180,7 +186,7 @@ def execute(roi, subs, tasks, num_processes):
         metrics = [res_obj.get() for res_obj in list_of_res_obj]
         mean = np.mean(metrics)
         std = np.std(metrics)
-        print(f'Type=[{problem_type}], roi=[{roi}], mean=[{mean:.3f}], std=[{std:.3f}]')
+        print(f'Type=[{problem_type}], roi=[{roi}], mean=[{mean:.3f}], std=[{std:.3f}], centerBy=[{centering_by}]')
         
         ax.errorbar(
             x=z+1,
@@ -194,9 +200,9 @@ def execute(roi, subs, tasks, num_processes):
     ax.set_xlabel('Problem Type')
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels([1, 2, 6])
-    plt.title(f'ROI: {roi}')
+    plt.title(f'ROI: {roi}, centering by {centering_by}')
     plt.legend()
-    plt.savefig(f'Ahlheim_results/{roi}.png')
+    plt.savefig(f'Ahlheim_results/{roi}_centeringBy{centering_by}.png')
         
 
 if __name__ == '__main__':    
@@ -215,6 +221,7 @@ if __name__ == '__main__':
     num_repetitions_per_run = 4
     smooth_beta = 2
     num_processes = 70
+    centering_by = 'row'
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
@@ -223,7 +230,8 @@ if __name__ == '__main__':
         roi=roi, 
         subs=subs, 
         tasks=tasks, 
-        num_processes=num_processes
+        num_processes=num_processes,
+        centering_by=centering_by
     )
     
     
