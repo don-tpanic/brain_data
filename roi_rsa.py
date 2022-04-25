@@ -24,13 +24,14 @@ from utils import convert_dcnnCoding_to_subjectCoding, reorder_RDM_entries_into_
 2. Perform RSA
 """
 
-def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
+def run_ants_command(roi, roi_path, roi_nums, smooth_mask=False):
     """
     Helper function that automatically grabs files to prepare 
     for the final ants command.
     """
     maths = MultiImageMaths()
     
+    # V1,2,3,1-3,4,LOC (left+right)
     if roi_nums is not None:
         all_files = []
         for roi_num in roi_nums:
@@ -49,7 +50,7 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
         maths.inputs.operand_files = all_files[1:]
     
     # HPC
-    else:
+    elif 'HHPC' in roi:
         if 'LH' in roi:
             h = 'l'
         else:
@@ -65,7 +66,25 @@ def run_ants_command(roi, roi_path, roi_nums, smooth_mask):
             f'{roi_path}/HIPP_HEAD_{h}h.nii.gz',
             f'{roi_path}/HIPP_TAIL_{h}h.nii.gz'
         ]
+    
+    # LHLOC, RHLOC
+    elif 'HLOC' in roi:
+        if 'LH' in roi:
+            h = 'l'
+        else:
+            h = 'r'
         
+        # WARNING: hardcoded roi_num
+        maths.inputs.in_file = f'{roi_path}/perc_VTPM_vol_roi14_{h}h.nii.gz'
+        maths.inputs.op_string = '-add %s ' 
+        if smooth_mask:
+            maths.inputs.op_string += f'-s {smooth_mask}'
+        maths.inputs.op_string += ' -bin '
+        
+        maths.inputs.operand_files = [
+            f'{roi_path}/perc_VTPM_vol_roi15_{h}h.nii.gz'
+        ]
+    
     maths.inputs.out_file = f'{roi_path}/mask-{roi}.nii.gz'
     runCmd = '/usr/bin/fsl5.0-' + maths.cmdline
     print(f'runCmd = {runCmd}')
@@ -79,8 +98,12 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     """
     print(f'[Check] running `merge_n_smooth_mask`')
     if not os.path.exists(f'{roi_path}/mask-{roi}.nii.gz'):
-
-        if 'HPC' not in roi:
+        
+        if roi in ['LHHPC', 'RHHPC', 'LHLOC', 'RHLOC']:
+            # If the above ROI, there is no left+right merge
+            roi_nums = None
+        else:
+            # Will need to merge left+right
             roi_number_mapping = {
                 'V1': [1, 2],
                 'V2': [3, 4],
@@ -91,9 +114,6 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
             }
             roi_nums = roi_number_mapping[roi]
         
-        else:
-            roi_nums = None
-        
         run_ants_command(
             roi=roi, 
             roi_path=roi_path, 
@@ -102,10 +122,9 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
         )
     
     else:
-        print(f'[Check] mask-{roi} already done, skip')
-        
+        print(f'[Check] mask-{roi} already done, skip')        
     
-def transform_mask_MNI_to_T1(sub, roi, roi_path):
+def transform_mask_MNI_to_T1(sub, roi, roi_path, root_path):
     """
     Given a subject and a ROI, 
     transform ROI mask from MNI space to subject's T1 space.
@@ -137,7 +156,7 @@ def transform_mask_MNI_to_T1(sub, roi, roi_path):
         print(f'[Check] mask-{roi}_T1 Already done, skip')
      
 
-def applyMask(roi, roi_path, sub, task, run, dataType, condition, smooth_beta):
+def applyMask(roi, root_path, glm_path, roi_path, sub, task, run, dataType, condition, smooth_beta):
     """
     Apply ROI mask (T1 space) to subject's whole brain beta weights.
     
@@ -203,7 +222,7 @@ def return_RDM(embedding_mtx, sub, task, run, roi, distance):
         print(f'[Check] Already exists, {RDM_fpath}')
     
 
-def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smooth_beta, distance):
+def applyMask_returnRDM(roi, root_path, glm_path, roi_path, sub, task, run, dataType, conditions, smooth_beta, distance):
     """
     Combines `applyMask` and `returnRDM` in one function,
     this is done so to enable multiprocessing.
@@ -219,6 +238,8 @@ def applyMask_returnRDM(roi, roi_path, sub, task, run, dataType, conditions, smo
             # apply the transformed mask
             roi, maskROI, fmri_masked = applyMask(
                 roi=roi, 
+                root_path=root_path,
+                glm_path=glm_path,
                 roi_path=roi_path,
                 sub=sub, 
                 task=task, 
@@ -330,7 +351,7 @@ def roi_execute(
                             results = pool.apply_async(
                                 applyMask_returnRDM, 
                                 args=[
-                                    roi, roi_path, sub, task, run, dataType, 
+                                    roi, root_path, glm_path, roi_path, sub, task, run, dataType, 
                                     conditions, smooth_beta, distance
                                 ]
                             )
