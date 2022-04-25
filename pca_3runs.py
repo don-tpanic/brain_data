@@ -161,6 +161,7 @@ def execute(roi, subs, tasks, num_processes):
     problem_types = sorted(list(type2metric.keys()))
     print(f'num_types={num_types}, {problem_types}')
 
+    fig, ax = plt.subplots()
     for z in range(num_types):
         problem_type = problem_types[z]
         # here we extract a list of res_obj and 
@@ -172,11 +173,27 @@ def execute(roi, subs, tasks, num_processes):
         std = np.std(metrics)
         print(f'Type=[{problem_type}], roi=[{roi}], mean=[{mean:.3f}], std=[{std:.3f}]')
         
+        ax.errorbar(
+            x=z+1,
+            y=mean,
+            yerr=std,
+            label=f'Type {problem_type}',
+            fmt='o'
+        )
+        
+    ax.set_ylabel('Compression')
+    ax.set_xlabel('Problem Type')
+    ax.set_xticks([1, 2, 3])
+    ax.set_xticklabels([1, 2, 6])
+    plt.title(f'ROI: {roi}')
+    plt.legend()
+    plt.savefig(f'Ahlheim_results/{roi}.png')
+        
 
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'RHLOC'
+    roi = 'LHLOC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
