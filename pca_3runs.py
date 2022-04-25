@@ -74,9 +74,15 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
     averaged_embedding_matrix = np.mean(
         np.array(averaged_embedding_matrix), axis=0
     )
-    pca = PCA(n_components=averaged_embedding_matrix.shape[1], random_state=42)
-    pca.fit(averaged_embedding_matrix)
-    explained_variance_ratio = pca.explained_variance_ratio_
+    
+    # mean-center (by row)
+    # NOTE: sklearn PCA default is by column.
+    averaged_embedding_matrix -= np.mean(averaged_embedding_matrix, axis=1)
+    # SVD
+    U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
+    explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
+    total_var = explained_variance_.sum()
+    explained_variance_ratio = explained_variance_ / total_var
     
     # return the k PCs that explain at least 90% variance
     k = 0
