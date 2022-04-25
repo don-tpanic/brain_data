@@ -112,7 +112,7 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
     return neural_compression(k=k)
         
 
-def execute(roi, subs, tasks, num_processes):
+def execute(roi, subs, tasks, num_processes, centering_by):
     if not os.path.exists(f'Ahlheim_results/{roi}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
             
