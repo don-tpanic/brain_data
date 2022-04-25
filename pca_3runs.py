@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from scipy import linalg
 import scipy.stats as stats
 import pandas as pd
 import multiprocessing
@@ -77,7 +78,9 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
     
     # mean-center (by row)
     # NOTE: sklearn PCA default is by column.
-    averaged_embedding_matrix -= np.mean(averaged_embedding_matrix, axis=1)
+    row_mean = np.mean(averaged_embedding_matrix, axis=1).reshape(-1, 1)
+    averaged_embedding_matrix -= row_mean
+    
     # SVD
     U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
     explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
@@ -199,7 +202,7 @@ def execute(roi, subs, tasks, num_processes):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'LHLOC'
+    roi = 'RHLOC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
