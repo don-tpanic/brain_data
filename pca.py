@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+from scipy import linalg
 import scipy.stats as stats
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ def neural_compression(k, n=32):
     return 1 - (k/n)
     
     
-def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, conditions, smooth_beta):
+def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, conditions, smooth_beta, centering_by):
     """
     Apply PCA onto an embedding matrix of (n_voxels, n_trials) of a given (roi, sub, task, run),
     where the columns are beta weights of a given roi of a given trial.
@@ -66,9 +67,22 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     print('beta_weights_masked.shape', beta_weights_masked.shape)
     
     # PCA
-    pca = PCA(n_components=beta_weights_masked.shape[1], random_state=42)
-    pca.fit(beta_weights_masked)
-    explained_variance_ratio = pca.explained_variance_ratio_
+    if centering_by == 'row':
+        # mean-center (by row)
+        # NOTE: sklearn PCA default is by column.
+        row_mean = np.mean(beta_weights_masked, axis=1).reshape(-1, 1)
+        beta_weights_masked -= row_mean
+        
+        # SVD
+        U, S, Vt = linalg.svd(beta_weights_masked, full_matrices=False)
+        explained_variance_ = (S ** 2) / (beta_weights_masked.shape[0] - 1)
+        total_var = explained_variance_.sum()
+        explained_variance_ratio = explained_variance_ / total_var
+    
+    elif centering_by == 'col':
+        pca = PCA(n_components=beta_weights_masked.shape[1], random_state=42)
+        pca.fit(beta_weights_masked)
+        explained_variance_ratio = pca.explained_variance_ratio_
     
     # return the k PCs that explain at least 90% variance
     k = 0
@@ -89,12 +103,12 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     return neural_compression(k=k)
         
 
-def compression_execute(roi, subs, runs, tasks, num_processes):
+def compression_execute(roi, subs, runs, tasks, num_processes, centering_by):
     """
     Top-level execute that apply PCA, get top k, 
     compute compression score and plot for all subs, runs, tasks.
     """
-    if not os.path.exists(f'compression_results/{roi}.npy'):
+    if not os.path.exists(f'compression_results/{roi}_centeringBy{centering_by}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
             
             if 'HPC' in roi:
@@ -125,7 +139,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
                             args=[
                                 roi, root_path, glm_path, roi_path, 
                                 sub, task, run, 
-                                dataType, conditions, smooth_beta
+                                dataType, conditions, smooth_beta, centering_by
                             ]
                         )
                                             
@@ -185,12 +199,12 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         compression_results['y'] = y
         compression_results['hue'] = hue
         compression_results['means'] = means
-        np.save(f'compression_results/{roi}.npy', compression_results)
+        np.save(f'compression_results/{roi}_centeringBy{centering_by}.npy', compression_results)
     
     else:
         print('[NOTE] Loading saved results, make sure it does not need update.')
         # load presaved results dictionary.
-        compression_results = np.load(f'compression_results/{roi}.npy', allow_pickle=True).ravel()[0]
+        compression_results = np.load(f'compression_results/{roi}_centeringBy{centering_by}.npy', allow_pickle=True).ravel()[0]
 
     # plot violinplots / stripplots
     fig, ax = plt.subplots()
@@ -232,7 +246,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
         mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3)
         
         # print out stats
-        print(f'Type=[{problem_type}], run=[{run}], mean=[{mean:.3f}], std=[{std:.3f}]')
+        print(f'Type=[{problem_type}], run=[{run}], mean=[{mean:.3f}], std=[{std:.3f}], centerBy=[{centering_by}]')
         if within_run_index == 2:
             print('-'*60)
         
@@ -254,8 +268,8 @@ def compression_execute(roi, subs, runs, tasks, num_processes):
     plt.legend()
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel(f'{roi} Compression')
-    plt.title(f'ROI: {roi}')
-    plt.savefig(f'compression_results/{roi}.png')
+    plt.title(f'ROI: {roi}, centering by {centering_by}')
+    plt.savefig(f'compression_results/{roi}_centeringBy{centering_by}.png')
 
 
 def mixed_effects_analysis(roi):
@@ -339,8 +353,7 @@ def mixed_effects_analysis(roi):
     )
     print(res)
         
-                
-        
+                   
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -357,18 +370,20 @@ if __name__ == '__main__':
     num_repetitions_per_run = 4
     smooth_beta = 2
     num_processes = 70
+    centering_by = 'row'
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    # compression_execute(
-    #     roi=roi, 
-    #     subs=subs, 
-    #     runs=runs, 
-    #     tasks=tasks, 
-    #     num_processes=num_processes
-    # )
+    compression_execute(
+        roi=roi, 
+        subs=subs, 
+        runs=runs, 
+        tasks=tasks, 
+        num_processes=num_processes,
+        centering_by=centering_by
+    )
     
-    mixed_effects_analysis(roi=roi)
+    # mixed_effects_analysis(roi=roi)
 
     
