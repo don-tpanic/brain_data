@@ -27,7 +27,7 @@ def neural_compression(k, n):
     return 1 - (k/n) 
     
     
-def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, conditions, smooth_beta):
+def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, conditions, smooth_beta, centering_by):
     """
     Apply PCA onto an embedding matrix of (n_voxels, n_conditions) of a given (roi, sub, task) averaged
     over runs, where the columns are beta weights of a given roi of a given condition.
@@ -75,16 +75,22 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
         np.array(averaged_embedding_matrix), axis=0
     )
     
-    # mean-center (by row)
-    # NOTE: sklearn PCA default is by column.
-    row_mean = np.mean(averaged_embedding_matrix, axis=1).reshape(-1, 1)
-    averaged_embedding_matrix -= row_mean
+    if centering_by == 'row':
+        # mean-center (by row)
+        # NOTE: sklearn PCA default is by column.
+        row_mean = np.mean(averaged_embedding_matrix, axis=1).reshape(-1, 1)
+        averaged_embedding_matrix -= row_mean
+        
+        # SVD
+        U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
+        explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
+        total_var = explained_variance_.sum()
+        explained_variance_ratio = explained_variance_ / total_var
     
-    # SVD
-    U, S, Vt = linalg.svd(averaged_embedding_matrix, full_matrices=False)
-    explained_variance_ = (S ** 2) / (averaged_embedding_matrix.shape[0] - 1)
-    total_var = explained_variance_.sum()
-    explained_variance_ratio = explained_variance_ / total_var
+    elif centering_by == 'col':
+        pca = PCA(n_components=averaged_embedding_matrix.shape[1], random_state=42)
+        pca.fit(averaged_embedding_matrix)
+        explained_variance_ratio = pca.explained_variance_ratio_
     
     # return the k PCs that explain at least 90% variance
     k = 0
@@ -109,7 +115,7 @@ def apply_PCA(roi, root_path, glm_path, roi_path, sub, task, dataType, condition
     )
 
 
-def execute(roi, subs, tasks, num_processes):
+def execute(roi, subs, tasks, num_processes, centering_by):
     if not os.path.exists(f'Ahlheim_results/{roi}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
             
@@ -140,7 +146,7 @@ def execute(roi, subs, tasks, num_processes):
                         args=[
                             roi, root_path, glm_path, roi_path, 
                             sub, task, 
-                            dataType, conditions, smooth_beta
+                            dataType, conditions, smooth_beta, centering_by
                         ]
                     )
                                                             
@@ -183,7 +189,7 @@ def execute(roi, subs, tasks, num_processes):
         metrics = [res_obj.get() for res_obj in list_of_res_obj]
         mean = np.mean(metrics)
         std = np.std(metrics)
-        print(f'Type=[{problem_type}], roi=[{roi}], mean=[{mean:.3f}], std=[{std:.3f}]')
+        print(f'Type=[{problem_type}], roi=[{roi}], mean=[{mean:.3f}], std=[{std:.3f}], centerBy=[{centering_by}]')
         
         ax.errorbar(
             x=z+1,
@@ -197,15 +203,15 @@ def execute(roi, subs, tasks, num_processes):
     ax.set_xlabel('Problem Type')
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels([1, 2, 6])
-    plt.title(f'ROI: {roi}')
+    plt.title(f'ROI: {roi}, centering by {centering_by}')
     plt.legend()
-    plt.savefig(f'Ahlheim_results/{roi}.png')
+    plt.savefig(f'Ahlheim_results/{roi}_centeringBy{centering_by}.png')
         
 
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm'
-    roi = 'LOC'
+    roi = 'vmPFC_sph10'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
@@ -217,6 +223,7 @@ if __name__ == '__main__':
     num_runs = len(runs)
     smooth_beta = 2
     num_processes = 70
+    centering_by = 'col'
     if dataType == 'beta':
         # ignore `*_fb` conditions
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
@@ -225,5 +232,6 @@ if __name__ == '__main__':
         roi=roi, 
         subs=subs, 
         tasks=tasks, 
-        num_processes=num_processes
+        num_processes=num_processes,
+        centering_by=centering_by
     )
