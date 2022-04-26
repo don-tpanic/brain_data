@@ -253,18 +253,10 @@ def compression_execute(roi, subs, runs, tasks, num_processes, centering_by):
         if global_index in range(num_bars)[-3:]:
             # print(global_index)
             final_run_data.append(per_type_data)
-    
-    # independent t-test on the last run's 3 problem_types:
-    for i in range(len(final_run_data)):
-        for j in range(len(final_run_data)):
-            if i >= j:
-                continue
-            print(f'Type {problem_types[i]} vs {problem_types[j]}')
-            print(stats.ttest_ind(final_run_data[i], final_run_data[j]))
-    
+        
     # hacky way getting legend
-    median_obj = ax.scatter(position, md, marker='s', color='red', s=33, zorder=3, label='median')
-    mean_obj = ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3, label='mean')
+    ax.scatter(position, md, marker='s', color='red', s=33, zorder=3, label='median')
+    ax.scatter(position, mean, marker='^', color='k', s=33, zorder=3, label='mean')
     plt.legend()
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel(f'{roi} Compression')
@@ -334,15 +326,6 @@ def mixed_effects_analysis(roi, centering_by):
         
     df = pd.read_csv(f"compression_results/{roi}_centeringBy{centering_by}.csv")
         
-    # sns.stripplot(
-    #     x='learning_block',
-    #     y='compression_score',
-    #     hue='problem_type',
-    #     data=df,
-    #     dodge=True
-    # )
-    # plt.savefig('test.png')
-    
     # two-way ANOVA:
     res = pg.rm_anova(
         dv='compression_score',
