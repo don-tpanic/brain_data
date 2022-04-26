@@ -272,7 +272,7 @@ def compression_execute(roi, subs, runs, tasks, num_processes, centering_by):
     plt.savefig(f'compression_results/{roi}_centeringBy{centering_by}.png')
 
 
-def mixed_effects_analysis(roi):
+def mixed_effects_analysis(roi, centering_by):
     """
     Perform a two-way ANOVA analysis as an alternative of 
     the bayesian mixed effect analysis in Mack et al., 2020.
@@ -283,15 +283,15 @@ def mixed_effects_analysis(roi):
         compression score
     """
     import pingouin as pg
-    if not os.path.exists(f"compression_results/{roi}.csv"):
+    if not os.path.exists(f"compression_results/{roi}_centeringBy{centering_by}.csv"):
         subjects = ['subject']
         types = ['problem_type']
         learning_blocks = ['learning_block']
         compression_scores = ['compression_score']
 
         compression_results = np.load(
-            f'compression_results/{roi}.npy', allow_pickle=True
-        ).ravel()[0]
+            f'compression_results/{roi}_centeringBy{centering_by}.npy', 
+            allow_pickle=True).ravel()[0]
         y = compression_results['y']
         num_bars = int(len(y) / (num_subs))
         problem_types = [1, 2, 6]
@@ -327,13 +327,12 @@ def mixed_effects_analysis(roi):
             compression_scores
         )).T
         pd.DataFrame(df).to_csv(
-            f"compression_results/{roi}.csv", 
+            f"compression_results/{roi}_centeringBy{centering_by}.csv", 
             index=False, 
             header=False
         )
         
-    else:
-        df = pd.read_csv(f"compression_results/{roi}.csv")
+    df = pd.read_csv(f"compression_results/{roi}_centeringBy{centering_by}.csv")
         
     # sns.stripplot(
     #     x='learning_block',
@@ -357,7 +356,7 @@ def mixed_effects_analysis(roi):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'vmPFC_sph10'
+    roi = 'LHHPC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
@@ -375,15 +374,15 @@ if __name__ == '__main__':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    compression_execute(
-        roi=roi, 
-        subs=subs, 
-        runs=runs, 
-        tasks=tasks, 
-        num_processes=num_processes,
-        centering_by=centering_by
-    )
+    # compression_execute(
+    #     roi=roi, 
+    #     subs=subs, 
+    #     runs=runs, 
+    #     tasks=tasks, 
+    #     num_processes=num_processes,
+    #     centering_by=centering_by
+    # )
     
-    # mixed_effects_analysis(roi=roi)
+    mixed_effects_analysis(roi=roi, centering_by=centering_by)
 
     
