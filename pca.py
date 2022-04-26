@@ -114,8 +114,8 @@ def compression_execute(roi, subs, runs, tasks, num_processes, centering_by):
             if 'HPC' in roi:
                 roi_path = 'ROIs/HPC'
                     
-            elif 'vmPFC' in roi:
-                roi_path = 'ROIs/vmPFC'
+            elif 'PFC' in roi:
+                roi_path = 'ROIs/PFC'
                 
             else:
                 # V1,2,3,1-4, LOC, LHLOC,RHLOC
