@@ -339,12 +339,13 @@ def mixed_effects_analysis(roi, centering_by):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'LHHPC'
+    roi = 'vmPFC_sph5'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
     num_conditions = 64
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
+    num_subs = len(subs)
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
