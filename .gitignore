@@ -6,7 +6,7 @@ Mack-Data
 glm
 glm_*
 ROIs/
-subject_RDMs/*rp-*
+subject_RDMs/
 
 
 # Byte-compiled / optimized / DLL files
