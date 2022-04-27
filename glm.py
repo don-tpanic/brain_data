@@ -1,5 +1,6 @@
 import os
 import json
+import multiprocessing
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -31,7 +32,7 @@ from `brain_data/Mack-Data/derivatives`
 ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
 """
 
-def GLM(sub, task, run, n_procs):
+def GLM(sub, task, run):
     """
     Run GLM of a given (sub, task, run)
     """
@@ -260,7 +261,7 @@ def GLM(sub, task, run, n_procs):
 
     # Visualize the graph
     Image(filename=f'{base_dir}/work_1st/graph.png')
-    analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
+    analysis1st.run()
 
 
 def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
@@ -342,14 +343,20 @@ def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
     plt.close()
 
 
-def execute(subs, tasks, runs, n_procs):
+def execute(subs, tasks, runs, num_processes):
     """
     Run GLM through all combo
     """
-    for sub in subs:
-        for task in tasks:
-            for run in runs:
-                GLM(sub, task, run, n_procs)
+    with multiprocessing.Pool(num_processes) as pool:
+        for sub in subs:
+            for task in tasks:
+                for run in runs:
+                    res_obj = pool.apply_async(
+                        GLM, args=[sub, task, run])
+                    
+        print(res_obj.get())
+        pool.close()
+        pool.join()
         
 
 if __name__ == '__main__':
@@ -359,22 +366,22 @@ if __name__ == '__main__':
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    n_procs = 20
+    num_processes = 70
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
-    print(f'n_procs={n_procs}')
-    # execute(subs, tasks, runs, n_procs)
+    print(f'num_processes={num_processes}')
+    execute(subs, tasks, runs, num_processes)
     
-    sub = '02'
-    task = '1'
-    run = '1'
-    dataType = 'beta'
-    condition = '0002'
-    plot = 'dmtx'
-    threshold = 10
-    visualize_glm(
-        sub=sub, task=task, run=run,
-        dataType=dataType, condition=condition, 
-        plot=plot, threshold=threshold
-    )
+    # sub = '02'
+    # task = '1'
+    # run = '1'
+    # dataType = 'beta'
+    # condition = '0002'
+    # plot = 'dmtx'
+    # threshold = 10
+    # visualize_glm(
+    #     sub=sub, task=task, run=run,
+    #     dataType=dataType, condition=condition, 
+    #     plot=plot, threshold=threshold
+    # )
