@@ -241,7 +241,7 @@ def prepare_events_table(sub, task, run, save_dir):
     behaviour_path = f'Mack-Data/behaviour/subject_{sub}/{sub}_study{task}_run{run}.txt'
     trialtiming = pd.read_csv(trialtiming_path, header=None).to_numpy()
     behaviour = pd.read_csv(behaviour_path, header=None).to_numpy()
-    
+        
     onsets = ['onset']
     durations = ['duration']
     weights = ['weight']
@@ -260,19 +260,47 @@ def prepare_events_table(sub, task, run, save_dir):
         stimulus_onset = int(trialtiming_i[4])
         stimulus_duration = 3.5
         stimulus = ''.join(behaviour_i[3:6])   # convert ['1', '0', '1'] to '101'
-        stimulus = f'{stimulus}_rp{repetition}'
+        stimulus_rp = f'{stimulus}_rp{repetition}'
         onsets.append(stimulus_onset)
         durations.append(stimulus_duration)
-        stimuli.append(stimulus)
-        
-        # feedback events
+        stimuli.append(stimulus_rp)
+                
+        # feedback of correct & incorrect as two regressor 
+        # (run-wise, i.e. repetition ignored)
+        # if correct, add to the correct regressor;
+        # if incorrect, add to the incorrect regressor.
         feedback_onset = int(trialtiming_i[5])
         feedback_duration = 2.0
-        stimulus_fb = f'{stimulus}_fb'
+        accuracy = behaviour_i[9]
+        
+        if accuracy == '1':  # given feedback=correct
+            stimulus_feedback = f'fb_correct' 
+        elif accuracy == '0': # given feedback=incorrect
+            stimulus_feedback = f'fb_incorrect'
+            
         onsets.append(feedback_onset)
         durations.append(feedback_duration)
-        stimuli.append(stimulus_fb)
-
+        stimuli.append(stimulus_feedback)
+        
+        # response impulse (run-wise, i.e. repetition ignored)
+        # regress impulse - https://nipype.readthedocs.io/en/1.1.0/users/model_specification.html
+        RT = behaviour_i[8]
+        if RT == 'NaN':
+            pass # do nothing
+        else:
+            RT = float(RT) / 1000.
+            response_onset = stimulus_onset + RT
+            response_duration = 0.
+            
+            if accuracy == '1':  # subject respose=correct
+                stimulus_response = f'resp_correct'
+            elif accuracy == '0': # subject response=incorrect
+                stimulus_response = f'resp_incorrect'
+            
+            onsets.append(response_onset)
+            durations.append(response_duration)
+            stimuli.append(stimulus_response)
+        
     onsets = np.array(onsets)
     durations = np.array(durations)
     stimuli = np.array(stimuli)
@@ -316,6 +344,6 @@ if __name__ == '__main__':
     # print(mapping['02'][1])
     # print(mapping['03'][2])
     
-    base_dir = 'glm_trial-estimate'
+    base_dir = 'glm_trial-estimate_Mack2020'
     prepare_events_table(sub='03', task=2, run=4, save_dir=base_dir)
     

@@ -59,7 +59,7 @@ def GLM(sub, task, run, n_procs):
         conditions.append(group[0])
         onsets.append(list(group[1].onset))
         durations.append(group[1].duration.tolist())
-        
+                
     subject_info = [
         Bunch(
             conditions=conditions,
@@ -67,7 +67,7 @@ def GLM(sub, task, run, n_procs):
             durations=durations,
         )
     ]
-
+    
     # Initiate the SpecifySPMModel node here
     modelspec = Node(
         SpecifySPMModel(
@@ -84,30 +84,41 @@ def GLM(sub, task, run, n_procs):
     # Condition names
     stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
     num_repetitions = 4
-    feedback_or_not = 2
+    feedback_or_response = ['fb', 'resp']
+    correct_or_incorrect = ['correct', 'incorrect']
     
     condition_names = []
     for stimulus in stimuli:
         for rp in range(1, num_repetitions+1):
-            for i in range(feedback_or_not):
-                if i == 0:
-                    condition_names.append(f'{stimulus}_rp{rp}')
-                else:
-                    condition_names.append(f'{stimulus}_rp{rp}_fb')
-    
+            condition_names.append(f'{stimulus}_rp{rp}')
+            
+    for i in feedback_or_response:
+        for j in correct_or_incorrect:
+            condition_name = f'{i}_{j}'
+            if condition_name not in conditions:
+                continue  # avoids error when subject has no incorrect response.
+            else:
+                condition_names.append(condition_name)
+
     num_conditions = len(condition_names)      
-    # print(len(condition_names))   # 64
+    # print(len(condition_names))   # 32 + 4ish (depending on if subject makes no incorrect)
+    # print(condition_names)
+    # exit()
 
     # Contrasts
     contrast_list = []
-    # step=2 to skip contrast for feedback onset
-    for i in range(0, num_conditions, 2):
-        mask = np.zeros(num_conditions, dtype=int)
-        mask[i] = 1
-        cont_i = [condition_names[i], 'T', condition_names, list(mask)]
-        contrast_list.append(cont_i)
-    
-    # print(contrast_list[15])
+    for i in range(num_conditions):
+        # skip contrasts of correct and incorrect
+        if 'correct' in condition_names[i]:
+            continue
+        else:
+            mask = np.zeros(num_conditions, dtype=int)
+            mask[i] = 1
+            cont_i = [condition_names[i], 'T', condition_names, list(mask)]
+            contrast_list.append(cont_i)
+    # print(len(contrast_list))
+    # print(contrast_list[-1])
+    # exit()
     
     # Initiate the Level1Design node here
     level1design = Node(
@@ -339,31 +350,31 @@ def execute(subs, tasks, runs, n_procs):
         for task in tasks:
             for run in runs:
                 GLM(sub, task, run, n_procs)
-
+        
 
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm_trial-estimate'
+    base_dir = 'glm_trial-estimate_Mack2020'
     num_subs = 23
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    n_procs = 70
+    n_procs = 20
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
     print(f'n_procs={n_procs}')
-    execute(subs, tasks, runs, n_procs)
+    # execute(subs, tasks, runs, n_procs)
     
-    # sub = '02'
-    # task = '1'
-    # run = '1'
-    # dataType = 'beta'
-    # condition = '0002'
-    # plot = 'dmtx'
-    # threshold = 10
-    # visualize_glm(
-    #     sub=sub, task=task, run=run,
-    #     dataType=dataType, condition=condition, 
-    #     plot=plot, threshold=threshold
-    # )
+    sub = '02'
+    task = '1'
+    run = '1'
+    dataType = 'beta'
+    condition = '0002'
+    plot = 'dmtx'
+    threshold = 10
+    visualize_glm(
+        sub=sub, task=task, run=run,
+        dataType=dataType, condition=condition, 
+        plot=plot, threshold=threshold
+    )
