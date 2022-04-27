@@ -338,12 +338,12 @@ def mixed_effects_analysis(roi, centering_by):
                    
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm_trial-estimate'
+    glm_path = 'glm_trial-estimate_Mack2020'
     roi = 'vmPFC_sph5'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
-    num_conditions = 64
+    num_conditions = 8 * 4  # trial-level
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
@@ -354,19 +354,16 @@ if __name__ == '__main__':
     smooth_beta = 2
     num_processes = 70
     centering_by = 'row'
-    if dataType == 'beta':
-        # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
-        conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
     
-    # compression_execute(
-    #     roi=roi, 
-    #     subs=subs, 
-    #     runs=runs, 
-    #     tasks=tasks, 
-    #     num_processes=num_processes,
-    #     centering_by=centering_by
-    # )
+    compression_execute(
+        roi=roi, 
+        subs=subs, 
+        runs=runs, 
+        tasks=tasks, 
+        num_processes=num_processes,
+        centering_by=centering_by
+    )
     
-    mixed_effects_analysis(roi=roi, centering_by=centering_by)
+    # mixed_effects_analysis(roi=roi, centering_by=centering_by)
 
     
