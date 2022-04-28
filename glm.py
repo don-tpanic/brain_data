@@ -1,5 +1,6 @@
 import os
 import json
+import multiprocessing
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -31,7 +32,7 @@ from `brain_data/Mack-Data/derivatives`
 ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
 """
 
-def GLM(sub, task, run, n_procs):
+def GLM(sub, task, run):
     """
     Run GLM of a given (sub, task, run)
     """
@@ -80,34 +81,30 @@ def GLM(sub, task, run, n_procs):
         ),
         name="modelspec"
     )
-
-
-
-
+    
     # Condition names
     stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
-    feedback_or_not = 2
-    
     condition_names = []
     for stimulus in stimuli:
-        for i in range(feedback_or_not):
-            if i == 0:
-                condition_names.append(f'{stimulus}')
-            else:
-                condition_names.append(f'{stimulus}_fb')
-    
+        condition_names.append(f'{stimulus}')
+        condition_names.append(f'{stimulus}_fb')
+        condition_names.append(f'{stimulus}_resp')
     num_conditions = len(condition_names)      
-    # print(len(condition_names))   # 16
+    # print(len(condition_names))   # 8 * 3
     
     # Contrasts
     contrast_list = []
     # step=2 to skip contrast for feedback onset
-    for i in range(0, num_conditions, 2):
-        mask = np.zeros(num_conditions, dtype=int)
-        mask[i] = 1
-        cont_i = [condition_names[i], 'T', condition_names, list(mask)]
-        contrast_list.append(cont_i)
-    print(contrast_list[-1])
+    for i in range(num_conditions):
+        if '_' in condition_names[i]:
+            # skip contrasts for _fb and _resp
+            continue
+        else:
+            mask = np.zeros(num_conditions, dtype=int)
+            mask[i] = 1
+            cont_i = [condition_names[i], 'T', condition_names, list(mask)]
+            contrast_list.append(cont_i)
+    # print(contrast_list[-1])
         
     # Initiate the Level1Design node here
     level1design = Node(
@@ -249,7 +246,7 @@ def GLM(sub, task, run, n_procs):
 
     # Visualize the graph
     Image(filename=f'{base_dir}/work_1st/graph.png')
-    analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
+    analysis1st.run()
 
 
 def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
@@ -331,29 +328,35 @@ def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
     plt.close()
 
 
-def execute(subs, tasks, runs, n_procs):
+def execute(subs, tasks, runs, num_processes):
     """
     Run GLM through all combo
     """
-    for sub in subs:
-        for task in tasks:
-            for run in runs:
-                GLM(sub, task, run, n_procs)
+    with multiprocessing.Pool(num_processes) as pool:
+        for sub in subs:
+            for task in tasks:
+                for run in runs:
+                    res_obj = pool.apply_async(
+                        GLM, args=[sub, task, run])
+        
+        print(res_obj.get())
+        pool.close()
+        pool.join()
 
 
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm'
+    base_dir = 'glm_run-estimate_Mack2016'
     num_subs = 23
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    n_procs = 70
+    num_processes = 70
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
-    print(f'n_procs={n_procs}')
-    execute(subs, tasks, runs, n_procs)
+    print(f'num_processes={num_processes}')
+    execute(subs, tasks, runs, num_processes)
     
     # sub = '02'
     # task = '1'

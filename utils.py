@@ -263,6 +263,19 @@ def prepare_events_table(sub, task, run, save_dir):
         onsets.append(feedback_onset)
         durations.append(feedback_duration)
         stimuli.append(stimulus_fb)
+        
+        # response events
+        RT = behaviour_i[8]
+        if RT == 'NaN':
+            pass # do nothing
+        else:
+            RT = float(RT) / 1000.
+            response_onset = stimulus_onset + RT
+            response_duration = 0.
+            stimulus_response = f'{stimulus}_resp'
+            onsets.append(response_onset)
+            durations.append(response_duration)
+            stimuli.append(stimulus_response)
 
     onsets = np.array(onsets)
     durations = np.array(durations)
