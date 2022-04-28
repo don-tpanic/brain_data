@@ -87,24 +87,18 @@ def GLM(sub, task, run):
     condition_names = []
     for stimulus in stimuli:
         condition_names.append(f'{stimulus}')
-        condition_names.append(f'{stimulus}_fb')
-        condition_names.append(f'{stimulus}_resp')
-    num_conditions = len(condition_names)      
-    # print(len(condition_names))   # 8 * 3
+    num_conditions = len(condition_names)    
+    print(condition_names)  
     
     # Contrasts
     contrast_list = []
     # step=2 to skip contrast for feedback onset
     for i in range(num_conditions):
-        if '_' in condition_names[i]:
-            # skip contrasts for _fb and _resp
-            continue
-        else:
-            mask = np.zeros(num_conditions, dtype=int)
-            mask[i] = 1
-            cont_i = [condition_names[i], 'T', condition_names, list(mask)]
-            contrast_list.append(cont_i)
-    # print(contrast_list[-1])
+        mask = np.zeros(num_conditions, dtype=int)
+        mask[i] = 1
+        cont_i = [condition_names[i], 'T', condition_names, list(mask)]
+        contrast_list.append(cont_i)
+    print(contrast_list[-1])
         
     # Initiate the Level1Design node here
     level1design = Node(
@@ -346,7 +340,7 @@ def execute(subs, tasks, runs, num_processes):
 
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    base_dir = 'glm_run-estimate_Mack2016'
+    base_dir = 'glm_run-estimate_Rob'
     num_subs = 23
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]

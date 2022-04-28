@@ -473,12 +473,12 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm_run-estimate_Mack2016'
-    rdm_path = 'subject_RDMs_Mack2016'
+    glm_path = 'glm_run-estimate_Rob'
+    rdm_path = 'subject_RDMs_Rob'
     rois = ['V1-3', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
-    num_conditions = 24  # stimulus + _fb + _resp
+    num_conditions = 8  # (stimulus -> feedback end) as one event
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']   
@@ -486,31 +486,30 @@ if __name__ == '__main__':
     num_subs = len(subs)
     
     if dataType == 'beta':
-        conditions = [f'{i:04d}' for i in range(1, num_conditions, 3)]
+        conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
         print(f'[Check] conditions=\n{conditions}')
-        num_conditions = len(conditions)
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType=dataType,
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=70
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='pearson',
-        problem_type=1,
-        seed=999, 
-        num_shuffles=1,
-        method='spearman',
-        dataType='beta'
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=70
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=1,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='spearman',
+    #     dataType='beta'
+    # )    

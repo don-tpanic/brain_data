@@ -248,35 +248,19 @@ def prepare_events_table(sub, task, run, save_dir):
         trialtiming_i = trialtiming[i][0].split('\t')
         behaviour_i = behaviour[i][0].split('\t')
         
-        # stimulus events
+        # stimulus+response+feedback events
         stimulus_onset = int(trialtiming_i[4])
-        stimulus_duration = 3.5
         stimulus = ''.join(behaviour_i[3:6])   # convert ['1', '0', '1'] to '101'
-        onsets.append(stimulus_onset)
-        durations.append(stimulus_duration)
-        stimuli.append(stimulus)
         
-        # feedback events
         feedback_onset = int(trialtiming_i[5])
         feedback_duration = 2.0
-        stimulus_fb = f'{stimulus}_fb'
-        onsets.append(feedback_onset)
-        durations.append(feedback_duration)
-        stimuli.append(stimulus_fb)
+        feedback_offset = feedback_onset + feedback_duration
         
-        # response events
-        RT = behaviour_i[8]
-        if RT == 'NaN':
-            pass # do nothing
-        else:
-            RT = float(RT) / 1000.
-            response_onset = stimulus_onset + RT
-            response_duration = 0.
-            stimulus_response = f'{stimulus}_resp'
-            onsets.append(response_onset)
-            durations.append(response_duration)
-            stimuli.append(stimulus_response)
-
+        total_duration = feedback_offset - stimulus_onset
+        onsets.append(stimulus_onset)
+        durations.append(total_duration)
+        stimuli.append(stimulus)
+        
     onsets = np.array(onsets)
     durations = np.array(durations)
     stimuli = np.array(stimuli)
