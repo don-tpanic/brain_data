@@ -482,7 +482,8 @@ if __name__ == '__main__':
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']   
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
+    num_subs = len(subs)
     
     if dataType == 'beta':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 3)]
