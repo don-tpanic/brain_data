@@ -531,7 +531,7 @@ def correlate_against_ideal_RDM_regression(rois, distance, problem_type, method,
             y_sub = all_rho[:, s]
             coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
             # coefs.append(coef)
-            print(coef[-1])
+            print(f'sub{subs[s]}, coef={coef[-1]:.3f}')
 
        
 if __name__ == '__main__':
