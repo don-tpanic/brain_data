@@ -470,12 +470,73 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
             )    
         print('------------------------------------------------------------------------')
 
-       
+
+def correlate_against_ideal_RDM_regression(rois, distance, problem_type, method, dataType):
+    """
+    Correlate each subject's RDM to the ideal RDM 
+    of a given type. For each (problem_type, run, sub) 
+    there is a correlation score (rho). 
+    
+    We will then fit linear regression model for each subject
+    across runs to obtain a co-efficient. This co-efficient 
+    indicates how correlation change over runs and should ideally be 
+    positive and significant over subjects.
+    """
+    import pingouin as pg
+
+    # exc. the _fb conditions
+    ideal_RDM = np.ones((num_conditions, num_conditions))
+    ideal_RDM[:4, :4] = 0
+    ideal_RDM[4:, 4:] = 0
+            
+    for roi in rois:
+        coefs = []
+        all_rho = np.empty((len(runs), num_subs))
+        
+        for r in range(len(runs)):
+            run = runs[r]
+            for s in range(num_subs):
+                sub = subs[s]
+                
+                # even sub: Type1 is task2, Type2 is task3
+                if int(sub) % 2 == 0:
+                    if problem_type == 1:
+                        task = 2
+                    elif problem_type == 2:
+                        task = 3
+                    else:
+                        task = 1
+                        
+                # odd sub: Type1 is task3, Type2 is task2
+                else:
+                    if problem_type == 1:
+                        task = 3
+                    elif problem_type == 2:
+                        task = 2
+                    else:
+                        task = 1
+                        
+                sub_RDM = np.load(
+                    f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}_{dataType}.npy'
+                )
+
+                # compute correlation to the ideal RDM
+                rho = compute_RSA(sub_RDM, ideal_RDM, method=method)
+                all_rho[r, s] = rho
+        
+        # fit linear regression models for each
+        # subject and obtain coefficient.
+        for s in range(num_subs):
+            X_sub = [1, 2, 3, 4]
+            y_sub = all_rho[:, s]
+            coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
+            # coefs.append(coef)
+            print(f'sub{subs[s]}, coef={coef[-1]:.3f}')
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_run-estimate_Rob'
     rdm_path = 'subject_RDMs_Rob'
-    rois = ['V1-3', 'LOC', 'RHHPC', 'LHHPC']
+    rois = ['LHHPC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 8  # (stimulus -> feedback end) as one event
@@ -491,18 +552,18 @@ if __name__ == '__main__':
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType=dataType,
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=70
-    )
+    # roi_execute(
+    #     rois=rois, 
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType=dataType,
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=70
+    # )
     
     # correlate_against_ideal_RDM(
     #     rois=rois, 
@@ -512,4 +573,12 @@ if __name__ == '__main__':
     #     num_shuffles=1,
     #     method='spearman',
     #     dataType='beta'
-    # )    
+    # )   
+    
+    correlate_against_ideal_RDM_regression(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        method='spearman',
+        dataType='beta'
+    )     
