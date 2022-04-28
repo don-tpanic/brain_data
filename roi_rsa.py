@@ -123,6 +123,7 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     
     else:
         print(f'[Check] mask-{roi} already done, skip')        
+   
     
 def transform_mask_MNI_to_T1(sub, roi, roi_path, root_path):
     """
@@ -309,8 +310,7 @@ def roi_execute(
         smooth_mask, smooth_beta, 
         num_processes
     ):
-    """
-    This is a top-level execution routine that does the following in order:
+    """This is a top-level execution routine that does the following in order:
     1. `merge_n_smooth_mask`: 
         - merge given ROI masks by left+right hemisphere and apply smoothing.
         - this step is subject general as it's in the MNI space.
@@ -348,14 +348,14 @@ def roi_execute(
                             
                             # Create a single process to produce 
                             # 1 RDM.
-                            results = pool.apply_async(
+                            res_obj = pool.apply_async(
                                 applyMask_returnRDM, 
                                 args=[
                                     roi, root_path, glm_path, roi_path, sub, task, run, dataType, 
                                     conditions, smooth_beta, distance
                                 ]
                             )
-        
+        print(res_obj.get())
         pool.close()
         pool.join()
                                                             
@@ -473,44 +473,42 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm'
-    rdm_path = 'subject_RDMs'
-    rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
+    glm_path = 'glm_run-estimate_Mack2016'
+    rdm_path = 'subject_RDMs_Mack2016'
+    rois = ['V1-3', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
-    num_conditions = 16  # exc. bias term (8 + 8_fb)
+    num_conditions = 24  # stimulus + _fb + _resp
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    distances = ['euclidean', 'pearson']    
+    distances = ['euclidean', 'pearson']   
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     
     if dataType == 'beta':
-        conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
+        conditions = [f'{i:04d}' for i in range(1, num_conditions, 3)]
+        print(f'[Check] conditions=\n{conditions}')
         
-    elif dataType == 'spmT':
-        conditions = [f'{i:04d}' for i in range(1, num_conditions//2+1)]
-
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType=dataType,
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=68
-    # )
-    
-    correlate_against_ideal_RDM(
+    roi_execute(
         rois=rois, 
-        distance='pearson',
-        problem_type=2,
-        seed=999, 
-        num_shuffles=1,
-        method='spearman',
-        dataType='beta'
-    )    
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=70
+    )
+    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=2,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='spearman',
+    #     dataType='beta'
+    # )    
