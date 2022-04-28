@@ -340,7 +340,7 @@ def roi_execute(
             merge_n_smooth_mask(roi=roi, roi_path=roi_path, smooth_mask=smooth_mask)
             
             for sub in subs:
-                transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path)
+                transform_mask_MNI_to_T1(sub=sub, roi=roi, roi_path=roi_path, root_path=root_path)
                 
                 for task in tasks:
                     for run in runs:
@@ -412,7 +412,7 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
     the correlation we get during un-shuffled is real.
     """
     # exc. the _fb conditions
-    ideal_RDM = np.ones((num_conditions // 2, num_conditions // 2))
+    ideal_RDM = np.ones((num_conditions, num_conditions))
     ideal_RDM[:4, :4] = 0
     ideal_RDM[4:, 4:] = 0
     # ideal_RDM = np.zeros((num_conditions, num_conditions))
@@ -487,28 +487,29 @@ if __name__ == '__main__':
     if dataType == 'beta':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 3)]
         print(f'[Check] conditions=\n{conditions}')
+        num_conditions = len(conditions)
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType=dataType,
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=70
-    )
-    
-    # correlate_against_ideal_RDM(
+    # roi_execute(
     #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=2,
-    #     seed=999, 
-    #     num_shuffles=1,
-    #     method='spearman',
-    #     dataType='beta'
-    # )    
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType=dataType,
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=70
+    # )
+    
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        seed=999, 
+        num_shuffles=1,
+        method='spearman',
+        dataType='beta'
+    )    
