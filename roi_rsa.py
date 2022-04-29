@@ -534,7 +534,7 @@ def correlate_against_ideal_RDM_regression(rois, distance, problem_type, method,
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm'
+    glm_path = 'glm_run-estimate'
     rdm_path = 'subject_RDMs'
     rois = ['LHHPC']
     num_subs = 23
@@ -547,38 +547,39 @@ if __name__ == '__main__':
     num_subs = len(subs)
     
     if dataType == 'beta':
+        # This is to skip conditions that are _fb
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType=dataType,
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=68
-    # )
+    roi_execute(
+        rois=rois, 
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=70
+    )
     
-    # correlate_against_ideal_RDM(
-    #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=1,
-    #     seed=999, 
-    #     num_shuffles=1,
-    #     method='spearman',
-    #     dataType='beta'
-    # )    
-    
-    correlate_against_ideal_RDM_regression(
+    correlate_against_ideal_RDM(
         rois=rois, 
         distance='pearson',
         problem_type=1,
+        seed=999, 
+        num_shuffles=1,
         method='spearman',
         dataType='beta'
     )    
+    
+    # correlate_against_ideal_RDM_regression(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=1,
+    #     method='spearman',
+    #     dataType='beta'
+    # )    
