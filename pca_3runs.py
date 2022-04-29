@@ -12,11 +12,15 @@ from roi_rsa import merge_n_smooth_mask, transform_mask_MNI_to_T1, applyMask
 
 """Reproducing key results from Ahlheim et al., 2018
     - LOC shows task-specific functional dimensionality
-We do not see expected results using Mack et al., 2020 routine.
-One difference in implementation is that Ahlheim 2018 averaged 
-the last 3 runs and then did cv-PCA.
-Here, (before doing cv-PCA), we make minimum changes to Mack 2020
-implementation to simply perform PCA on the average over last 3 runs.
+    
+Some key differences to the original implementation:
+1. There is no cv-PCA at the moment. Instead, we average 
+    the last 3 runs matrices and selecting dimensions based 
+    on 90% variance explained.
+2. Ahlheim 2018 uses GLM from Mack 2016 (run-level), but here 
+    our run-level GLM does not include impulse.
+3. Ahlheim 2018 does PCA centering by row (voxel) but Mack 2020
+    does PCA centering by column. Here we try both.
 """
 
 def neural_compression(k, n):
@@ -210,23 +214,25 @@ def execute(roi, subs, tasks, num_processes, centering_by):
 
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm'
-    roi = 'vmPFC_sph10'
+    glm_path = 'glm_run-estimate'
+    roi = 'RHLOC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
     num_conditions = 16
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
+    num_subs = len(subs)
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [2, 3, 4]  # will average over.
     num_runs = len(runs)
     smooth_beta = 2
     num_processes = 70
-    centering_by = 'col'
+    centering_by = 'row'
     if dataType == 'beta':
         # ignore `*_fb` conditions
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
+        num_conditions = len(conditions)
     
     execute(
         roi=roi, 
