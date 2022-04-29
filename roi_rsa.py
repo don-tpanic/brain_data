@@ -490,7 +490,7 @@ if __name__ == '__main__':
     glm_path = 'glm_trial-estimate'
     rdm_path = 'subject_RDMs'
     # rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
-    rois = ['RHHPC', 'LHHPC']
+    rois = ['LHHPC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64
@@ -504,25 +504,22 @@ if __name__ == '__main__':
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
-        
-    elif dataType == 'spmT':
-        # there is no `_rp*_fb` conditions already here in t maps.
-        conditions = [f'{i:04d}' for i in range(1, num_conditions//2+1)]
-        
+        num_conditions = len(conditions)
+                
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    # roi_execute(
-    #     rois=rois, 
-    #     subs=subs, 
-    #     tasks=tasks, 
-    #     runs=runs, 
-    #     dataType=dataType,
-    #     conditions=conditions,
-    #     distances=distances,
-    #     smooth_mask=0.2,
-    #     smooth_beta=2,
-    #     num_processes=70
-    # )
+    roi_execute(
+        rois=rois, 
+        subs=subs, 
+        tasks=tasks, 
+        runs=runs, 
+        dataType=dataType,
+        conditions=conditions,
+        distances=distances,
+        smooth_mask=0.2,
+        smooth_beta=2,
+        num_processes=70
+    )
     
     correlate_against_ideal_RDM(
         rois=rois, 
