@@ -1,5 +1,6 @@
 import os
 import json
+import multiprocessing
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -24,14 +25,17 @@ from nilearn.plotting import plot_glass_brain
 
 import utils
 
-"""
-Code for fitting GLM on preprocessed fMRI BOLD data
-from `brain_data/Mack-Data/derivatives`
+"""Fitting GLM on preprocessed fMRI BOLD data
+trial-level-glm:
+    Here GLM estimate is performed at the trial-level. 
+    That is, the same physical stimulus across trials
+    of a task is considered a separate condition. Other 
+    conditions involve feedback onset and motion correct.
+    
+data: `brain_data/Mack-Data/derivatives`
+ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html"""
 
-ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
-"""
-
-def GLM(sub, task, run, n_procs):
+def GLM(sub, task, run):
     """
     Run GLM of a given (sub, task, run)
     """
@@ -60,6 +64,8 @@ def GLM(sub, task, run, n_procs):
         onsets.append(list(group[1].onset))
         durations.append(group[1].duration.tolist())
         
+    # conditions: ['000_rp1', '000_rp1_fb', '000_rp2', '000_rp2_fb', ...
+        
     subject_info = [
         Bunch(
             conditions=conditions,
@@ -84,19 +90,15 @@ def GLM(sub, task, run, n_procs):
     # Condition names
     stimuli = ['000', '001', '010', '011', '100', '101', '110', '111']
     num_repetitions = 4
-    feedback_or_not = 2
     
     condition_names = []
     for stimulus in stimuli:
         for rp in range(1, num_repetitions+1):
-            for i in range(feedback_or_not):
-                if i == 0:
-                    condition_names.append(f'{stimulus}_rp{rp}')
-                else:
-                    condition_names.append(f'{stimulus}_rp{rp}_fb')
+            condition_names.append(f'{stimulus}_rp{rp}')
+            condition_names.append(f'{stimulus}_rp{rp}_fb')
     
     num_conditions = len(condition_names)      
-    # print(len(condition_names))   # 64
+    assert len(condition_names) == 64   # 64 = 8 * 4 + 8 * 4 (feedback)
 
     # Contrasts
     contrast_list = []
@@ -106,8 +108,7 @@ def GLM(sub, task, run, n_procs):
         mask[i] = 1
         cont_i = [condition_names[i], 'T', condition_names, list(mask)]
         contrast_list.append(cont_i)
-    
-    # print(contrast_list[15])
+    # print(contrast_list[-1])
     
     # Initiate the Level1Design node here
     level1design = Node(
@@ -177,7 +178,7 @@ def GLM(sub, task, run, n_procs):
                 'sub-{sub}/anat/sub-{sub}_desc-preproc_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
-        'mc_param': '/home/ken/projects/brain_data/glm/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
+        'mc_param': '/home/ken/projects/brain_data/glm_trial-estimate/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
     }    
     
     # Create SelectFiles node
@@ -249,7 +250,7 @@ def GLM(sub, task, run, n_procs):
 
     # Visualize the graph
     Image(filename=f'{base_dir}/work_1st/graph.png')
-    analysis1st.run('MultiProc', plugin_args={'n_procs': n_procs})
+    analysis1st.run()
 
 
 def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
@@ -331,14 +332,20 @@ def visualize_glm(sub, task, run, dataType, condition, plot, threshold):
     plt.close()
 
 
-def execute(subs, tasks, runs, n_procs):
+def execute(subs, tasks, runs, num_processes):
     """
     Run GLM through all combo
     """
-    for sub in subs:
-        for task in tasks:
-            for run in runs:
-                GLM(sub, task, run, n_procs)
+    with multiprocessing.Pool(num_processes) as pool:
+        for sub in subs:
+            for task in tasks:
+                for run in runs:
+                    res_obj = pool.apply_async(
+                        GLM, args=[sub, task, run])
+        
+        print(res_obj.get())
+        pool.close()
+        pool.join()
 
 
 if __name__ == '__main__':
@@ -348,12 +355,12 @@ if __name__ == '__main__':
     subs = [f'{i:02d}' for i in range(2, num_subs+2)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
-    n_procs = 70
+    num_processes = 70
     print(f'subs={subs}')
     print(f'tasks={tasks}')
     print(f'runs={runs}')
-    print(f'n_procs={n_procs}')
-    execute(subs, tasks, runs, n_procs)
+    print(f'num_processes={num_processes}')
+    execute(subs, tasks, runs, num_processes)
     
     # sub = '02'
     # task = '1'
