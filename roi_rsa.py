@@ -123,6 +123,7 @@ def merge_n_smooth_mask(roi, roi_path, smooth_mask):
     
     else:
         print(f'[Check] mask-{roi} already done, skip')        
+  
     
 def transform_mask_MNI_to_T1(sub, roi, roi_path, root_path):
     """
@@ -527,8 +528,8 @@ def correlate_against_ideal_RDM_regression(rois, distance, problem_type, method,
             X_sub = [1, 2, 3, 4]
             y_sub = all_rho[:, s]
             coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
-            # coefs.append(coef)
-            print(f'sub{subs[s]}, coef={coef[-1]:.3f}')
+            print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
+        print(np.mean(all_rho, axis=1))
        
        
 if __name__ == '__main__':
