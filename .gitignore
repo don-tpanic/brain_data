@@ -7,7 +7,7 @@ glm
 glm_*
 ROIs/
 *RDMs*
-
+compression_results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
