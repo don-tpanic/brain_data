@@ -543,7 +543,7 @@ if __name__ == '__main__':
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']    
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
+    subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
     
     if dataType == 'beta':
@@ -553,25 +553,25 @@ if __name__ == '__main__':
         
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
-    roi_execute(
-        rois=rois, 
-        subs=subs, 
-        tasks=tasks, 
-        runs=runs, 
-        dataType=dataType,
-        conditions=conditions,
-        distances=distances,
-        smooth_mask=0.2,
-        smooth_beta=2,
-        num_processes=70
-    )
+    # roi_execute(
+    #     rois=rois, 
+    #     subs=subs, 
+    #     tasks=tasks, 
+    #     runs=runs, 
+    #     dataType=dataType,
+    #     conditions=conditions,
+    #     distances=distances,
+    #     smooth_mask=0.2,
+    #     smooth_beta=2,
+    #     num_processes=70
+    # )
     
     correlate_against_ideal_RDM(
         rois=rois, 
         distance='pearson',
         problem_type=1,
         seed=999, 
-        num_shuffles=1,
+        num_shuffles=200,
         method='spearman',
         dataType='beta'
     )    
