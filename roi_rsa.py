@@ -538,10 +538,10 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_run-estimate_Mack2016'
     rdm_path = 'subject_RDMs_Mack2016'
-    rois = ['LHHPC']
+    rois = ['V1-3', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
-    num_conditions = 24  # stimulus + _fb + _resp
+    num_conditions = 24  # stimulus + _fb + _resp (8 * 3)
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
     distances = ['euclidean', 'pearson']   
@@ -579,7 +579,7 @@ if __name__ == '__main__':
     # )    
     
     correlate_against_ideal_RDM_regression(
-        rois=rois, 
+        rois=['LHHPC'], 
         distance='pearson',
         problem_type=1,
         method='spearman',
