@@ -367,7 +367,8 @@ def roi_execute(
                                     conditions, smooth_beta, distance
                                 ]
                             )
-                                    
+                            
+        print(results.get())                            
         pool.close()
         pool.join()
                                                         
@@ -487,14 +488,14 @@ def correlate_against_ideal_RDM(rois, distance, problem_type, num_shuffles, meth
   
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
-    glm_path = 'glm_trial-estimate'
-    rdm_path = 'subject_RDMs'
-    # rois = ['V1', 'V2', 'V3', 'V1-3', 'V4', 'LOC', 'RHHPC', 'LHHPC']
-    rois = ['RHHPC', 'LHHPC']
+    glm_path = 'glm_trial-estimate_Mack2020'
+    rdm_path = 'subject_RDMs_Mack2020'
+    rois = ['LHHPC']
     num_subs = 23
     dataType = 'beta'
-    num_conditions = 64
-    subs = [f'{i:02d}' for i in range(2, num_subs+2)]
+    num_conditions = 8 * 4  # trial-level (exc. correct & incorrect)
+    subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
+    num_subs = len(subs)
     conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
     tasks = [1, 2, 3]
     runs = [1, 2, 3, 4]
@@ -502,13 +503,8 @@ if __name__ == '__main__':
     num_repetitions_per_run = 4
     
     if dataType == 'beta':
-        # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
-        conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
-        
-    elif dataType == 'spmT':
-        # there is no `_rp*_fb` conditions already here in t maps.
-        conditions = [f'{i:04d}' for i in range(1, num_conditions//2+1)]
-        
+        conditions = [f'{i:04d}' for i in range(1, num_conditions+1)]
+                
     reorder_mapper = reorder_RDM_entries_into_chunks()
     
     # roi_execute(
