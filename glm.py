@@ -25,12 +25,19 @@ from nilearn.plotting import plot_glass_brain
 
 import utils
 
-"""
-Code for fitting GLM on preprocessed fMRI BOLD data
-from `brain_data/Mack-Data/derivatives`
-
-ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html
-"""
+"""Fitting GLM on preprocessed fMRI BOLD data
+run-level-glm:
+    Here GLM estimate is performed at the run-level. 
+    That is, the same physical stimulus across trials
+    of a task is considered a single condition. 
+    
+    In fact, since Rob argues that response and feedback
+    are so close and BOLD signal is so slow. Why not we 
+    just model from stimulus onset to feedback offset as 
+    a single event (duration much longer)
+    
+data: `brain_data/Mack-Data/derivatives`
+ref: https://miykael.github.io/nipype_tutorial/notebooks/handson_analysis.html"""
 
 def GLM(sub, task, run):
     """
@@ -168,7 +175,7 @@ def GLM(sub, task, run):
                 'sub-{sub}/anat/sub-{sub}_desc-preproc_T1w.nii.gz',
         'func': '/home/ken/projects/brain_data/Mack-Data/derivatives/' \
                 'sub-{sub}/func/sub-{sub}_task-{task}_run-{run}_space-T1w_desc-preproc_bold.nii.gz',
-        'mc_param': '/home/ken/projects/brain_data/glm/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
+        'mc_param': '/home/ken/projects/brain_data/glm_run-estimate_Rob/mc_params/sub-{sub}_task-{task}_run-{run}_mc_params.tsv',
     }
 
     # Create SelectFiles node
