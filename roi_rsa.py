@@ -536,7 +536,7 @@ if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_run-estimate_Rob'
     rdm_path = 'subject_RDMs_Rob'
-    rois = ['LHHPC']
+    rois = ['V1-3', 'LOC', 'RHHPC', 'LHHPC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 8  # (stimulus -> feedback end) as one event
@@ -565,15 +565,15 @@ if __name__ == '__main__':
     #     num_processes=70
     # )
     
-    # correlate_against_ideal_RDM(
-    #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=1,
-    #     seed=999, 
-    #     num_shuffles=1,
-    #     method='spearman',
-    #     dataType='beta'
-    # )   
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='euclidean',
+        problem_type=1,
+        seed=999, 
+        num_shuffles=1,
+        method='spearman',
+        dataType='beta'
+    )   
     
     correlate_against_ideal_RDM_regression(
         rois=rois, 
