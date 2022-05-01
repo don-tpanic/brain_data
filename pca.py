@@ -346,7 +346,7 @@ def mixed_effects_analysis(roi, centering_by):
 if __name__ == '__main__':    
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'vmPFC_sph5'
+    roi = 'RHLOC'
     num_subs = 23
     num_types = 3
     dataType = 'beta'
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     num_repetitions_per_run = 4
     smooth_beta = 2
     num_processes = 70
-    centering_by = 'col'
+    centering_by = 'row'
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
