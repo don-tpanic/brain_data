@@ -16,6 +16,10 @@ from roi_rsa import merge_n_smooth_mask, transform_mask_MNI_to_T1, applyMask
 1. Figure2b results: neural compression against learning blocks across 
     problem types (complexities)
 2. See [sustain_plus] for brain-model prediction (neural compression - attn compression)
+
+Key differences in implementation to Mack 2020:
+1. Trial-level GLM does not regress out impulse and correct & incorrect feedback.
+2. Mack 2020 centers by column, we try both by column and by row.
 """
 
 def neural_compression(k, n=32):
@@ -108,6 +112,9 @@ def compression_execute(roi, subs, runs, tasks, num_processes, centering_by):
     Top-level execute that apply PCA, get top k, 
     compute compression score and plot for all subs, runs, tasks.
     """
+    if not os.path.exists(f'compression_results'):
+        os.mkdir(f'compression_results')
+    
     if not os.path.exists(f'compression_results/{roi}_centeringBy{centering_by}.npy'):
         with multiprocessing.Pool(num_processes) as pool:
             
@@ -353,20 +360,21 @@ if __name__ == '__main__':
     num_repetitions_per_run = 4
     smooth_beta = 2
     num_processes = 70
-    centering_by = 'row'
+    centering_by = 'col'
     if dataType == 'beta':
         # ignore `_rp*_fb` conditions, the remaining are `_rp*` conditions.
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
+        num_conditions = len(conditions)
     
-    # compression_execute(
-    #     roi=roi, 
-    #     subs=subs, 
-    #     runs=runs, 
-    #     tasks=tasks, 
-    #     num_processes=num_processes,
-    #     centering_by=centering_by
-    # )
+    compression_execute(
+        roi=roi, 
+        subs=subs, 
+        runs=runs, 
+        tasks=tasks, 
+        num_processes=num_processes,
+        centering_by=centering_by
+    )
     
-    mixed_effects_analysis(roi=roi, centering_by=centering_by)
+    # mixed_effects_analysis(roi=roi, centering_by=centering_by)
 
     
