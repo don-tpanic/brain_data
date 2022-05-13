@@ -165,7 +165,7 @@ def applyMask(roi, root_path, glm_path, roi_path, sub, task, run, dataType, cond
     -------
         per (ROI, subject, task, run, condition) beta weights
     """
-    print(f'[Check] apply mask..')
+    # print(f'[Check] apply mask..')
     output_path = f'output_run_{run}_sub_{sub}_task_{task}'
     
     if dataType == 'beta':
