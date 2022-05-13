@@ -81,19 +81,22 @@ def per_stimuli_pair_train_and_eval(
     
     return:
     -------
-        val_acc: validation accuracy of this single pair of stimuli.
+        val_acc: average validation accuracy of this single pair of stimuli.
     """
     X = []
     Y = []
     for run in runs:
         for stimulus in [stimulus1, stimulus2]:                            
             for condition in mapper[stimulus]:
+                
                 # print(
                 #     f'[Check] sub{sub}, '\
                 #     f'run={run}, '\
                 #     f'stimulus={stimulus}, '\
                 #     f'condition={condition}'
                 # )
+                
+                # get per-condition beta weights
                 _, _, fmri_masked = applyMask(
                     roi,
                     root_path,
@@ -135,8 +138,8 @@ def decoding_accuracy_execute(
     ):
     """
     1. Given each problem type and subject, we iterate pairs of stimuli,
-    for each stimuli pair, we group all repetitions of the same stimulus 
-    as from one class. 
+    for each stimuli pair, we group all repetitions （of all runs)
+    of the same stimulus as from one class. 
     2. For each stimuli pair, we train a classifier with 
         cross-validation and return a single accuracy for that pair. 
     3. We finally return all accuracies for each problem type.
@@ -215,7 +218,6 @@ if __name__ == '__main__':
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
     runs = [1, 2, 3, 4]
-    distances = ['pearson']
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
