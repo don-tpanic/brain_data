@@ -195,18 +195,18 @@ def decoding_accuracy_execute(
         pool.close()
         pool.join()
     
-    decoding_accuracy = defaultdict(list)
+    decoding_accuracy_collector = defaultdict(list)
     for problem_type in problem_types:
         per_type_results_obj = decoding_accuracy[problem_type]
         per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
-        decoding_accuracy[problem_type].extend(per_type_results)
+        decoding_accuracy_collector[problem_type].extend(per_type_results)
     
     
-    print(np.mean(decoding_accuracy[1]), np.std(decoding_accuracy[1]))
-    print(np.mean(decoding_accuracy[2]), np.std(decoding_accuracy[2]))
-    print(np.mean(decoding_accuracy[6]), np.std(decoding_accuracy[6]))
+    print(np.mean(decoding_accuracy_collector[1]), np.std(decoding_accuracy_collector[1]))
+    print(np.mean(decoding_accuracy_collector[2]), np.std(decoding_accuracy_collector[2]))
+    print(np.mean(decoding_accuracy_collector[6]), np.std(decoding_accuracy_collector[6]))
 
-    np.save('decoding_accuracy.npy', decoding_accuracy)
+    np.save('decoding_accuracy.npy', decoding_accuracy_collector)
         
         
 if __name__ == '__main__':
