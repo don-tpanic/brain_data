@@ -147,7 +147,11 @@ def decoding_accuracy_execute(
         cross-validation and return a single accuracy for that pair. 
     3. We finally return all accuracies for each problem type.
     """
-    if not os.path.exists(f'decoding_accuracy_{num_runs}runs.npy'):
+    results_path = 'decoding_results'
+    if not os.path.exists(results_path):
+        os.mkdir(results_path)
+    
+    if not os.path.exists(f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy'):
         if 'HPC' not in roi:
             roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         else:
@@ -159,7 +163,7 @@ def decoding_accuracy_execute(
         )
         
         with multiprocessing.Pool(num_processes) as pool:
-            decoding_accuracy = defaultdict(list)  
+            decoding_accuracy = defaultdict(lambda: defaultdict(list))
             for problem_type in problem_types:
                 for sub in subs:
                     for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
@@ -195,20 +199,24 @@ def decoding_accuracy_execute(
                         )
                         # res_obj.get() = val_acc
                         # print(res_obj.get())
-                        decoding_accuracy[problem_type].append(res_obj)
+                        decoding_accuracy[problem_type][sub].append(res_obj)
             pool.close()
             pool.join()
     
         decoding_accuracy_collector = defaultdict(list)
         for problem_type in problem_types:
-            per_type_results_obj = decoding_accuracy[problem_type]
-            per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
-            decoding_accuracy_collector[problem_type].extend(per_type_results)
-        np.save(f'decoding_accuracy_{num_runs}runs.npy', decoding_accuracy_collector)
+            for sub in subs:
+                # all pairs of (type, sub)
+                per_type_results_obj = decoding_accuracy[problem_type][sub]
+                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
+                # only need average of all pairs
+                decoding_accuracy_collector[problem_type].extend(np.mean(per_type_results))
+        np.save(f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', decoding_accuracy_collector)
     
     else:
         decoding_accuracy_collector = np.load(
-            f'decoding_accuracy_{num_runs}runs.npy', allow_pickle=True).ravel()[0]
+            f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', 
+            allow_pickle=True).ravel()[0]
     
     print(
         f'Type 1 acc: {np.mean(decoding_accuracy_collector[1]):.3f}, '\
@@ -221,24 +229,68 @@ def decoding_accuracy_execute(
     print(
         f'Type 6 acc: {np.mean(decoding_accuracy_collector[6]):.3f}, '\
         f'{np.std(decoding_accuracy_collector[6]):.3f}'
-    )   
-    visualize_decoding_accuracy(decoding_accuracy_collector, num_runs)
+    )  
+
+    # visualize_decoding_accuracy(decoding_accuracy_collector, num_runs)
+
+
+def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
+    """Fitting linear regression models to per subject decoding 
+    accuracies over problem_types. This way, we can read off the 
+    regression coefficient on whether there is an up trend of 
+    decoding accuracies as task difficulty increases in order to 
+    test statistic significance of our finding that the harder 
+    the problem, the better the decoding (hence lower recon loss).
     
+    Impl:
+    -----
+        `decoding_accuracy_collector` are saved in format:
+            {
+             'Type1': [sub02_acc, sub03_acc, ..],
+             'Type2}: ...
+            }
         
-def visualize_decoding_accuracy(decoding_accuracy_collector, num_runs):
-    fig, ax = plt.subplots()
-    data = []
-    for problem_type in problem_types:
-        data.append(decoding_accuracy_collector[problem_type])
+        To fit linear regression per subject across types, we 
+        convert the format to a matrix where each row is a subject,
+        and each column is a problem_type.
+    """
+    import pingouin as pg
     
-    sns.stripplot(data=data)
-    ax.set_xlabel('Problem Types')
-    ax.set_ylabel('Decoding Accuracy')
+    results_path = 'decoding_results'
+    decoding_accuracy_collector = np.load(
+        f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', 
+        allow_pickle=True).ravel()[0]
     
-    # ax.set_xticks(np.arange(len(lossWs)))
-    # ax.set_xticklabels(lossWs)
-    plt.tight_layout()
-    plt.savefig(f'decoding_accuracy_{num_runs}runs.png')
+    group_results_by_subject = np.ones((num_subs, len(problem_types)))
+    for z in range(len(problem_types)):
+        problem_type = problem_types[z]
+        # [sub02_acc, sub03_acc, ...]
+        per_type_all_subjects = group_results_by_subject[problem_type]
+        for s in range(num_subs):
+            group_results_by_subject[s, z] = per_type_all_subjects[s]
+    
+    for s in range(num_subs):
+        X_sub = problem_types
+        # [sub02_type1_acc, sub02_type2_acc, ...]
+        y_sub = group_results_by_subject[s, :]
+        coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
+        print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
+        
+        
+# def visualize_decoding_accuracy(decoding_accuracy_collector, num_runs):
+#     fig, ax = plt.subplots()
+#     data = []
+#     for problem_type in problem_types:
+#         data.append(decoding_accuracy_collector[problem_type])
+    
+#     sns.stripplot(data=data)
+#     ax.set_xlabel('Problem Types')
+#     ax.set_ylabel('Decoding Accuracy')
+    
+#     # ax.set_xticks(np.arange(len(lossWs)))
+#     # ax.set_xticklabels(lossWs)
+#     plt.tight_layout()
+#     plt.savefig(f'decoding_accuracy_{num_runs}runs.png')
 
     
 if __name__ == '__main__':
