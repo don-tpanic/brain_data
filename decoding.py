@@ -71,7 +71,9 @@ def per_stimuli_pair_train_and_eval(
     ):
     """Single train and eval on a pair of stimuli.
     1. Data-points across runs for a single pair are collected
-    2. Cross-validation is applied.
+    2. Cross-validation is applied. Notice, we always test on pairs
+       from the same run. Therefore, a trick to create the folds of 
+       cv is simply to use the run as spliter.
     
     inputs:
     -------
@@ -129,8 +131,7 @@ def per_stimuli_pair_train_and_eval(
     
     # cross-validation
     test_score = []
-    # we can use the fact that there are 
-    # 4 runs and we create 4 folds.
+    # num_runs = num_folds
     for fold_id in range(1, cv+1):
         val_mask = (run_info == fold_id)
         train_mask = ~val_mask
@@ -311,7 +312,7 @@ if __name__ == '__main__':
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
-    runs = [1, 2, 3, 4]
+    runs = [2, 3, 4]
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
