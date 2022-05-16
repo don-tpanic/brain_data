@@ -66,8 +66,7 @@ def per_stimuli_pair_train_and_eval(
         task, 
         dataType, 
         smooth_beta,
-        mapper,
-        cv
+        mapper
     ):
     """Single train and eval on a pair of stimuli.
     1. Data-points across runs for a single pair are collected
@@ -130,9 +129,9 @@ def per_stimuli_pair_train_and_eval(
     Y = le.fit(Y).transform(Y)
     
     # cross-validation
+    # runs are fold_ids
     test_score = []
-    # num_runs = num_folds
-    for fold_id in range(1, cv+1):
+    for fold_id in runs:
         val_mask = (run_info == fold_id)
         train_mask = ~val_mask
         
@@ -215,8 +214,7 @@ def decoding_accuracy_execute(
                                 task, 
                                 dataType, 
                                 smooth_beta,
-                                mapper,
-                                num_runs
+                                mapper
                             ]
                         )
                         # res_obj.get() is val_acc of (sub, pair)
