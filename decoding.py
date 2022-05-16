@@ -3,9 +3,11 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import itertools
-from collections import defaultdict
 import multiprocessing
+from collections import defaultdict
+
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
 from sklearn.utils import shuffle
@@ -122,7 +124,7 @@ def per_stimuli_pair_train_and_eval(
     # Y=[0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1]
     
     # cross-validation
-    classifier = LinearSVC()
+    classifier = LinearSVC(C=0.1)
     cv_results = cross_validate(classifier, X=X, y=Y, cv=4)
     print(cv_results['test_score'])  
     val_acc = np.mean(cv_results['test_score'])
@@ -134,6 +136,7 @@ def decoding_accuracy_execute(
         roi, 
         conditions, 
         num_repetitions_per_run, 
+        num_runs,
         num_processes=72
     ):
     """
@@ -144,71 +147,100 @@ def decoding_accuracy_execute(
         cross-validation and return a single accuracy for that pair. 
     3. We finally return all accuracies for each problem type.
     """
-    if 'HPC' not in roi:
-        roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
-    else:
-        roi_path = 'ROIs/HPC'
+    if not os.path.exists(f'decoding_accuracy_{num_runs}runs.npy'):
+        if 'HPC' not in roi:
+            roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+        else:
+            roi_path = 'ROIs/HPC'
+            
+        mapper = stimuli2conditions(
+            conditions=conditions, 
+            num_repetitions_per_run=num_repetitions_per_run
+        )
         
-    mapper = stimuli2conditions(
-        conditions=conditions, 
-        num_repetitions_per_run=num_repetitions_per_run
-    )
+        with multiprocessing.Pool(num_processes) as pool:
+            decoding_accuracy = defaultdict(list)  
+            for problem_type in problem_types:
+                for sub in subs:
+                    for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
+                        if int(sub) % 2 == 0:
+                            if problem_type == 1:
+                                task = 2
+                            elif problem_type == 2:
+                                task = 3
+                            else:
+                                task = 1
+                        else:
+                            if problem_type == 1:
+                                task = 3
+                            elif problem_type == 2:
+                                task = 2
+                            else:
+                                task = 1
+                        
+                        res_obj = pool.apply_async(
+                            per_stimuli_pair_train_and_eval, 
+                            args=[
+                                runs, stimulus1, stimulus2, 
+                                roi,
+                                root_path,
+                                glm_path,
+                                roi_path,
+                                sub, 
+                                task, 
+                                dataType, 
+                                smooth_beta,
+                                mapper
+                            ]
+                        )
+                        # res_obj.get() = val_acc
+                        # print(res_obj.get())
+                        decoding_accuracy[problem_type].append(res_obj)
+            pool.close()
+            pool.join()
     
-    with multiprocessing.Pool(num_processes) as pool:
-        decoding_accuracy = defaultdict(list)  
+        decoding_accuracy_collector = defaultdict(list)
         for problem_type in problem_types:
-            for sub in subs:
-                for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
-                    if int(sub) % 2 == 0:
-                        if problem_type == 1:
-                            task = 2
-                        elif problem_type == 2:
-                            task = 3
-                        else:
-                            task = 1
-                    else:
-                        if problem_type == 1:
-                            task = 3
-                        elif problem_type == 2:
-                            task = 2
-                        else:
-                            task = 1
-                    
-                    res_obj = pool.apply_async(
-                        per_stimuli_pair_train_and_eval, 
-                        args=[
-                            runs, stimulus1, stimulus2, 
-                            roi,
-                            root_path,
-                            glm_path,
-                            roi_path,
-                            sub, 
-                            task, 
-                            dataType, 
-                            smooth_beta,
-                            mapper
-                        ]
-                    )
-                    # res_obj.get() = val_acc
-                    # print(res_obj.get())
-                    decoding_accuracy[problem_type].append(res_obj)
-        pool.close()
-        pool.join()
+            per_type_results_obj = decoding_accuracy[problem_type]
+            per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
+            decoding_accuracy_collector[problem_type].extend(per_type_results)
+        np.save(f'decoding_accuracy_{num_runs}runs.npy', decoding_accuracy_collector)
     
-    decoding_accuracy_collector = defaultdict(list)
+    else:
+        decoding_accuracy_collector = np.load(
+            f'decoding_accuracy_{num_runs}runs.npy', allow_pickle=True).ravel()[0]
+    
+    print(
+        f'Type 1 acc: {np.mean(decoding_accuracy_collector[1]):.3f}, '\
+        f'{np.std(decoding_accuracy_collector[1]):.3f}'
+    )
+    print(
+        f'Type 2 acc: {np.mean(decoding_accuracy_collector[2]):.3f}, '\
+        f'{np.std(decoding_accuracy_collector[2]):.3f}'
+    )
+    print(
+        f'Type 6 acc: {np.mean(decoding_accuracy_collector[6]):.3f}, '\
+        f'{np.std(decoding_accuracy_collector[6]):.3f}'
+    )   
+    visualize_decoding_accuracy(decoding_accuracy_collector, num_runs)
+    
+        
+def visualize_decoding_accuracy(decoding_accuracy_collector, num_runs):
+    fig, ax = plt.subplots()
+    data = []
     for problem_type in problem_types:
-        per_type_results_obj = decoding_accuracy[problem_type]
-        per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
-        decoding_accuracy_collector[problem_type].extend(per_type_results)
+        data.append(decoding_accuracy_collector[problem_type])
     
+    sns.stripplot(data=data)
+    ax.set_xlabel('Problem Types')
+    ax.set_ylabel('Decoding Accuracy')
     
-    print(np.mean(decoding_accuracy_collector[1]), np.std(decoding_accuracy_collector[1]))
-    print(np.mean(decoding_accuracy_collector[2]), np.std(decoding_accuracy_collector[2]))
-    print(np.mean(decoding_accuracy_collector[6]), np.std(decoding_accuracy_collector[6]))
+    # ax.set_xticks(np.arange(len(lossWs)))
+    # ax.set_xticklabels(lossWs)
+    plt.tight_layout()
+    plt.savefig(f'decoding_accuracy_{num_runs}runs.png')
 
-    np.save('decoding_accuracy.npy', decoding_accuracy_collector)
-        
-        
+    
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -217,7 +249,7 @@ if __name__ == '__main__':
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
-    runs = [1, 2, 3, 4]
+    runs = [2, 3, 4]
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
@@ -231,6 +263,7 @@ if __name__ == '__main__':
     decoding_accuracy_execute(
         roi=roi, conditions=conditions, 
         num_repetitions_per_run=num_repetitions_per_run,
+        num_runs=len(runs),
         num_processes=72
     )
     
