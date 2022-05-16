@@ -239,16 +239,16 @@ def decoding_accuracy_execute(
             allow_pickle=True).ravel()[0]
     
     print(
-        f'Type 1 acc: {np.mean(decoding_accuracy_collector[1]):.3f}, '\
-        f'{stats.sem(decoding_accuracy_collector[1]):.3f}'
+        f'Type 1 acc={np.mean(decoding_accuracy_collector[1]):.3f}, '\
+        f'sem={stats.sem(decoding_accuracy_collector[1]):.3f}'
     )
     print(
-        f'Type 2 acc: {np.mean(decoding_accuracy_collector[2]):.3f}, '\
-        f'{stats.sem(decoding_accuracy_collector[2]):.3f}'
+        f'Type 2 acc={np.mean(decoding_accuracy_collector[2]):.3f}, '\
+        f'sem={stats.sem(decoding_accuracy_collector[2]):.3f}'
     )
     print(
-        f'Type 6 acc: {np.mean(decoding_accuracy_collector[6]):.3f}, '\
-        f'{stats.sem(decoding_accuracy_collector[6]):.3f}'
+        f'Type 6 acc={np.mean(decoding_accuracy_collector[6]):.3f}, '\
+        f'sem={stats.sem(decoding_accuracy_collector[6]):.3f}'
     )  
 
 
