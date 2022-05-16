@@ -13,7 +13,6 @@ from sklearn import preprocessing
 from sklearn.utils import shuffle
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import cross_validate
-from sklearn.model_selection import train_test_split
 
 from roi_rsa import applyMask
 
@@ -65,7 +64,8 @@ def per_stimuli_pair_train_and_eval(
         task, 
         dataType, 
         smooth_beta,
-        mapper
+        mapper,
+        cv=4
     ):
     """Single train and eval on a pair of stimuli.
     1. Data-points across runs for a single pair are collected
@@ -87,6 +87,7 @@ def per_stimuli_pair_train_and_eval(
     """
     X = []
     Y = []
+    run_info = []  # helpful for cross-validation
     for run in runs:
         for stimulus in [stimulus1, stimulus2]:                            
             for condition in mapper[stimulus]:
@@ -112,22 +113,39 @@ def per_stimuli_pair_train_and_eval(
                     smooth_beta
                 )
                 X.append(fmri_masked)
-                Y.append(stimulus)                    
-                    
-    X = shuffle(np.array(X), random_state=999)
-    Y = shuffle(np.array(Y), random_state=999)
+                Y.append(stimulus)
+                run_info.append(run)              
+
+    # convert to ndarray so cv masking works correctly
+    X = np.array(X)
+    Y = np.array(Y)
+    run_info = np.array(run_info)
     
     # convert Y to classifier-compatible labels.
     le = preprocessing.LabelEncoder()
     Y = le.fit(Y).transform(Y)
-    # e.g.
-    # Y=[0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0 0 0 1 1 1 1]
     
     # cross-validation
-    classifier = LinearSVC(C=0.1)
-    cv_results = cross_validate(classifier, X=X, y=Y, cv=4)
-    print(cv_results['test_score'])  
-    val_acc = np.mean(cv_results['test_score'])
+    test_score = []
+    # we can use the fact that there are 
+    # 4 runs and we create 4 folds.
+    for fold_id in range(1, cv+1):
+        val_mask = (run_info == fold_id)
+        train_mask = ~val_mask
+        
+        X_train = X[train_mask, :]
+        Y_train = Y[train_mask]
+        X_val = X[val_mask, :]
+        Y_val = Y[val_mask]
+        
+        # fit and eval for one fold        
+        classifier = LinearSVC(C=0.1)
+        classifier.fit(X=X_train, y=Y_train)
+        test_score.append(
+            classifier.score(X=X_val, y=Y_val))
+    
+    print(test_score)  
+    val_acc = np.mean(test_score)
     print(f'[Check] sub{sub}, {stimulus1}-{stimulus2}, val_acc={val_acc}')
     return val_acc
 
@@ -197,8 +215,7 @@ def decoding_accuracy_execute(
                                 mapper
                             ]
                         )
-                        # res_obj.get() = val_acc
-                        # print(res_obj.get())
+                        # res_obj.get() is val_acc of (sub, pair)
                         decoding_accuracy[problem_type][sub].append(res_obj)
             pool.close()
             pool.join()
@@ -210,7 +227,7 @@ def decoding_accuracy_execute(
                 per_type_results_obj = decoding_accuracy[problem_type][sub]
                 per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
                 # only need average of all pairs
-                decoding_accuracy_collector[problem_type].extend(np.mean(per_type_results))
+                decoding_accuracy_collector[problem_type].append(np.mean(per_type_results))
         np.save(f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', decoding_accuracy_collector)
     
     else:
@@ -255,6 +272,7 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
         and each column is a problem_type.
     """
     import pingouin as pg
+    from scipy import stats
     
     results_path = 'decoding_results'
     decoding_accuracy_collector = np.load(
@@ -265,16 +283,23 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
     for z in range(len(problem_types)):
         problem_type = problem_types[z]
         # [sub02_acc, sub03_acc, ...]
-        per_type_all_subjects = group_results_by_subject[problem_type]
+        per_type_all_subjects = decoding_accuracy_collector[problem_type]
         for s in range(num_subs):
             group_results_by_subject[s, z] = per_type_all_subjects[s]
     
+    all_coefs = []
     for s in range(num_subs):
         X_sub = problem_types
         # [sub02_type1_acc, sub02_type2_acc, ...]
         y_sub = group_results_by_subject[s, :]
         coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
-        print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
+        # print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
+        all_coefs.append(coef[-1])
+    
+    print(f'average coef={np.mean(all_coefs)}')
+    print(
+        stats.ttest_1samp(all_coefs, popmean=0)
+    )
         
         
 # def visualize_decoding_accuracy(decoding_accuracy_collector, num_runs):
@@ -301,7 +326,7 @@ if __name__ == '__main__':
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
-    runs = [2, 3, 4]
+    runs = [1, 2, 3, 4]
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
@@ -317,5 +342,12 @@ if __name__ == '__main__':
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
         num_processes=72
+    )
+    
+    decoding_accuracy_regression(
+        roi=roi, 
+        num_runs=len(runs), 
+        num_subs=num_subs, 
+        problem_types=problem_types
     )
     
