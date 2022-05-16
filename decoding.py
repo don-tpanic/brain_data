@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import numpy as np
 import seaborn as sns
+import scipy.stats as stats
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
 from sklearn.utils import shuffle
@@ -37,7 +38,8 @@ def stimuli2conditions(conditions, num_repetitions_per_run):
             '100': ['0033', '0035', '0037', '0039'], 
             '101': ['0041', '0043', '0045', '0047'], 
             '110': ['0049', '0051', '0053', '0055'], 
-            '111': ['0057', '0059', '0061', '0063']})
+            '111': ['0057', '0059', '0061', '0063']
+        }
     
     inputs:
     -------
@@ -65,7 +67,7 @@ def per_stimuli_pair_train_and_eval(
         dataType, 
         smooth_beta,
         mapper,
-        cv=4
+        cv
     ):
     """Single train and eval on a pair of stimuli.
     1. Data-points across runs for a single pair are collected
@@ -212,7 +214,8 @@ def decoding_accuracy_execute(
                                 task, 
                                 dataType, 
                                 smooth_beta,
-                                mapper
+                                mapper,
+                                num_runs
                             ]
                         )
                         # res_obj.get() is val_acc of (sub, pair)
@@ -237,18 +240,16 @@ def decoding_accuracy_execute(
     
     print(
         f'Type 1 acc: {np.mean(decoding_accuracy_collector[1]):.3f}, '\
-        f'{np.std(decoding_accuracy_collector[1]):.3f}'
+        f'{stats.sem(decoding_accuracy_collector[1]):.3f}'
     )
     print(
         f'Type 2 acc: {np.mean(decoding_accuracy_collector[2]):.3f}, '\
-        f'{np.std(decoding_accuracy_collector[2]):.3f}'
+        f'{stats.sem(decoding_accuracy_collector[2]):.3f}'
     )
     print(
         f'Type 6 acc: {np.mean(decoding_accuracy_collector[6]):.3f}, '\
-        f'{np.std(decoding_accuracy_collector[6]):.3f}'
+        f'{stats.sem(decoding_accuracy_collector[6]):.3f}'
     )  
-
-    # visualize_decoding_accuracy(decoding_accuracy_collector, num_runs)
 
 
 def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
@@ -302,22 +303,6 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
     )
         
         
-# def visualize_decoding_accuracy(decoding_accuracy_collector, num_runs):
-#     fig, ax = plt.subplots()
-#     data = []
-#     for problem_type in problem_types:
-#         data.append(decoding_accuracy_collector[problem_type])
-    
-#     sns.stripplot(data=data)
-#     ax.set_xlabel('Problem Types')
-#     ax.set_ylabel('Decoding Accuracy')
-    
-#     # ax.set_xticks(np.arange(len(lossWs)))
-#     # ax.set_xticklabels(lossWs)
-#     plt.tight_layout()
-#     plt.savefig(f'decoding_accuracy_{num_runs}runs.png')
-
-    
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
