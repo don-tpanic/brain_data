@@ -248,10 +248,20 @@ def decoding_accuracy_execute(
     print(
         f'Type 6 acc={np.mean(decoding_accuracy_collector[6]):.3f}, '\
         f'sem={stats.sem(decoding_accuracy_collector[6]):.3f}'
-    )  
+    )
+    
+    average_coef, t, p = decoding_accuracy_regression(
+        decoding_accuracy_collector,
+        num_subs=num_subs, 
+        problem_types=problem_types
+    )
 
 
-def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
+def decoding_accuracy_regression(
+        decoding_accuracy_collector, 
+        num_subs, 
+        problem_types
+    ):
     """Fitting linear regression models to per subject decoding 
     accuracies over problem_types. This way, we can read off the 
     regression coefficient on whether there is an up trend of 
@@ -274,11 +284,6 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
     import pingouin as pg
     from scipy import stats
     
-    results_path = 'decoding_results'
-    decoding_accuracy_collector = np.load(
-        f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', 
-        allow_pickle=True).ravel()[0]
-    
     group_results_by_subject = np.ones((num_subs, len(problem_types)))
     for z in range(len(problem_types)):
         problem_type = problem_types[z]
@@ -296,9 +301,11 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
         # print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
         all_coefs.append(coef[-1])
     
-    print(f'average coef={np.mean(all_coefs):.3f}')
+    average_coef = np.mean(all_coefs)
+    print(f'average_coef={average_coef:.3f}')
     t, p = stats.ttest_1samp(all_coefs, popmean=0)
     print(f't={t:.3f}, one-tailed p={p/2:.3f}')
+    return average_coef, t, p/2
         
         
 if __name__ == '__main__':
@@ -325,12 +332,5 @@ if __name__ == '__main__':
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
         num_processes=72
-    )
-    
-    decoding_accuracy_regression(
-        roi=roi, 
-        num_runs=len(runs), 
-        num_subs=num_subs, 
-        problem_types=problem_types
     )
     
