@@ -477,7 +477,10 @@ def decoding_error_overtime_execute(
     for problem_type in problem_types:
         for run in runs:
             per_run = decoding_error_collector[problem_type][run]
-            print(f'Type{problem_type}, run{run}, 1-acc={np.mean(per_run):.3f}')
+            print(
+                f'Type{problem_type}, run{run}, '\
+                f'1-acc={np.mean(per_run):.3f}, sem={stats.sem(per_run):.3f}'
+            )
          
     # average_coef, t, p = decoding_error_regression(
     #     decoding_error_collector,
