@@ -296,10 +296,9 @@ def decoding_accuracy_regression(roi, num_runs, num_subs, problem_types):
         # print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
         all_coefs.append(coef[-1])
     
-    print(f'average coef={np.mean(all_coefs)}')
-    print(
-        stats.ttest_1samp(all_coefs, popmean=0)
-    )
+    print(f'average coef={np.mean(all_coefs):.3f}')
+    t, p = stats.ttest_1samp(all_coefs, popmean=0)
+    print(f't={t:.3f}, one-tailed p={p/2:.3f}')
         
         
 if __name__ == '__main__':
