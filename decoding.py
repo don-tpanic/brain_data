@@ -460,12 +460,20 @@ def decoding_error_overtime_execute(
                 per_type_results_obj = decoding_error[problem_type][sub]
                 # a list of dict (keys are run ids)
                 per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
+                                
                 # iterate all dicts and gather val_acc by run_id
+                temp = defaultdict(list)
                 for per_pair_dict in per_type_results:
                     for run_id in per_pair_dict.keys():
                         val_acc = per_pair_dict[run_id]
-                        decoding_error_collector[problem_type][run_id].append(1-val_acc)
-        
+                        # collect all pairs by run_id and average over pairs
+                        # so that for each (sub, run_id) there is one value
+                        temp[run_id].append(1-val_acc)
+                
+                # re-go over runs to compute average over pairs of a (sub, run_id)
+                for run_id in runs:
+                    decoding_error_collector[problem_type][run_id].append(np.mean(temp[run_id]))
+                                              
         # https://stackoverflow.com/questions/16439301/cant-pickle-defaultdict/16439531#16439531 
         with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'wb') as f:
             dill.dump(decoding_error_collector, f)
@@ -474,21 +482,32 @@ def decoding_error_overtime_execute(
         with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
             decoding_error_collector = dill.load(f)
     
+    visualize_decoding_error_overtime(results_path, num_runs)
+
+
+def visualize_decoding_error_overtime(results_path, num_runs):
+    fig, ax = plt.subplots()
+    with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
+        decoding_error_collector = dill.load(f)
+    
+    x = []    # each sub's run
+    y = []    # each sub problem_type's decoding error
+    hue = []  # each sub problem_type
     for problem_type in problem_types:
         for run in runs:
-            per_run = decoding_error_collector[problem_type][run]
-            print(
-                f'Type{problem_type}, run{run}, '\
-                f'1-acc={np.mean(per_run):.3f}, sem={stats.sem(per_run):.3f}'
-            )
-         
-    # average_coef, t, p = decoding_error_regression(
-    #     decoding_error_collector,
-    #     num_subs=num_subs, 
-    #     problem_types=problem_types
-    # )
-
-
+            per_run_metrics = decoding_error_collector[problem_type][run]
+            x.extend(f'[{run}]' * num_subs)
+            y.extend(per_run_metrics)
+            hue.extend([f'Type {problem_type}'] * num_subs)
+    
+    palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
+    ax = sns.stripplot(x=x, y=y, hue=hue, palette=palette, dodge=True, alpha=0.8, jitter=0.3, size=4)
+    ax.set_xlabel('Learning Blocks')
+    ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
+    plt.tight_layout()
+    plt.savefig(f'decoding_results_overtime/decoding_error_{num_runs}runs_{roi}.png')
+    
+    
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -521,5 +540,4 @@ if __name__ == '__main__':
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
         num_processes=72
-    )
-    
+    )    
