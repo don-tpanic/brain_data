@@ -2,8 +2,10 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+import dill
 import itertools
 import multiprocessing
+from functools import partial
 from collections import defaultdict
 
 import numpy as np
@@ -93,15 +95,7 @@ def per_stimuli_pair_train_and_eval(
     run_info = []  # helpful for cross-validation
     for run in runs:
         for stimulus in [stimulus1, stimulus2]:                            
-            for condition in mapper[stimulus]:
-                
-                # print(
-                #     f'[Check] sub{sub}, '\
-                #     f'run={run}, '\
-                #     f'stimulus={stimulus}, '\
-                #     f'condition={condition}'
-                # )
-                
+            for condition in mapper[stimulus]:                
                 # get per-condition beta weights
                 _, _, fmri_masked = applyMask(
                     roi,
@@ -237,28 +231,35 @@ def decoding_accuracy_execute(
             f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', 
             allow_pickle=True).ravel()[0]
     
+    
+    # convert accuracy to error to be consistent 
+    # with recon loss in model
+    decoding_error_collector = defaultdict(list)
+    for problem_type in problem_types:
+        decoding_error_collector[problem_type] = 1-np.array(decoding_accuracy_collector[problem_type])
+    
     print(
-        f'Type 1 acc={np.mean(decoding_accuracy_collector[1]):.3f}, '\
-        f'sem={stats.sem(decoding_accuracy_collector[1]):.3f}'
+        f'Type 1 err={np.mean(decoding_error_collector[1]):.3f}, '\
+        f'sem={stats.sem(decoding_error_collector[1]):.3f}'
     )
     print(
-        f'Type 2 acc={np.mean(decoding_accuracy_collector[2]):.3f}, '\
-        f'sem={stats.sem(decoding_accuracy_collector[2]):.3f}'
+        f'Type 2 err={np.mean(decoding_error_collector[2]):.3f}, '\
+        f'sem={stats.sem(decoding_error_collector[2]):.3f}'
     )
     print(
-        f'Type 6 acc={np.mean(decoding_accuracy_collector[6]):.3f}, '\
-        f'sem={stats.sem(decoding_accuracy_collector[6]):.3f}'
+        f'Type 6 err={np.mean(decoding_error_collector[6]):.3f}, '\
+        f'sem={stats.sem(decoding_error_collector[6]):.3f}'
     )
     
-    average_coef, t, p = decoding_accuracy_regression(
-        decoding_accuracy_collector,
+    average_coef, t, p = decoding_error_regression(
+        decoding_error_collector,
         num_subs=num_subs, 
         problem_types=problem_types
     )
 
 
-def decoding_accuracy_regression(
-        decoding_accuracy_collector, 
+def decoding_error_regression(
+        decoding_error_collector, 
         num_subs, 
         problem_types
     ):
@@ -288,7 +289,7 @@ def decoding_accuracy_regression(
     for z in range(len(problem_types)):
         problem_type = problem_types[z]
         # [sub02_acc, sub03_acc, ...]
-        per_type_all_subjects = decoding_accuracy_collector[problem_type]
+        per_type_all_subjects = decoding_error_collector[problem_type]
         for s in range(num_subs):
             group_results_by_subject[s, z] = per_type_all_subjects[s]
     
@@ -308,6 +309,183 @@ def decoding_accuracy_regression(
     return average_coef, t, p/2
         
         
+        
+##### overtime analysis ####
+def per_stimuli_pair_train_and_eval_overtime(
+        runs, stimulus1, stimulus2, 
+        roi,
+        root_path,
+        glm_path,
+        roi_path,
+        sub, 
+        task, 
+        dataType, 
+        smooth_beta,
+        mapper
+    ):
+    """
+    To obtain overtime results, we need to collect 
+    decoding accuracy for each fold separately. 
+    
+    Impl:
+    -----
+        We store per fold (i.e. run) results using 
+        a dictionary whose keys are the run ids and 
+        values are the decoding accuracies.
+    """
+    X = []
+    Y = []
+    run_info = []  # helpful for cross-validation
+    for run in runs:
+        for stimulus in [stimulus1, stimulus2]:                            
+            for condition in mapper[stimulus]:                
+                # get per-condition beta weights
+                _, _, fmri_masked = applyMask(
+                    roi,
+                    root_path,
+                    glm_path,
+                    roi_path,
+                    sub, 
+                    task, 
+                    run, 
+                    dataType, 
+                    condition,
+                    smooth_beta
+                )
+                X.append(fmri_masked)
+                Y.append(stimulus)
+                run_info.append(run)              
+
+    # convert to ndarray so cv masking works correctly
+    X = np.array(X)
+    Y = np.array(Y)
+    run_info = np.array(run_info)
+    
+    # convert Y to classifier-compatible labels.
+    le = preprocessing.LabelEncoder()
+    Y = le.fit(Y).transform(Y)
+    
+    # cross-validation
+    # runs are fold_ids
+    test_score = {}
+    for fold_id in runs:
+        val_mask = (run_info == fold_id)
+        train_mask = ~val_mask
+        
+        X_train = X[train_mask, :]
+        Y_train = Y[train_mask]
+        X_val = X[val_mask, :]
+        Y_val = Y[val_mask]
+        
+        # fit and eval for one fold        
+        classifier = LinearSVC(C=0.1)
+        classifier.fit(X=X_train, y=Y_train)
+        test_score[fold_id] = classifier.score(X=X_val, y=Y_val)
+    
+    print(f'test_score={test_score}')
+    return test_score
+
+
+def decoding_error_overtime_execute(
+        roi, 
+        conditions, 
+        num_repetitions_per_run, 
+        num_runs,
+        num_processes=72
+    ):
+    """
+    overtime meaning that we collect decoding errors 
+    split by runs.
+    """
+    results_path = 'decoding_results_overtime'
+    if not os.path.exists(results_path):
+        os.mkdir(results_path)
+    
+    if not os.path.exists(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl'):
+        if 'HPC' not in roi:
+            roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+        else:
+            roi_path = 'ROIs/HPC'
+            
+        mapper = stimuli2conditions(
+            conditions=conditions, 
+            num_repetitions_per_run=num_repetitions_per_run
+        )
+        
+        with multiprocessing.Pool(num_processes) as pool:
+            decoding_error = defaultdict(lambda: defaultdict(list))
+            for problem_type in problem_types:
+                for sub in subs:
+                    for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
+                        if int(sub) % 2 == 0:
+                            if problem_type == 1:
+                                task = 2
+                            elif problem_type == 2:
+                                task = 3
+                            else:
+                                task = 1
+                        else:
+                            if problem_type == 1:
+                                task = 3
+                            elif problem_type == 2:
+                                task = 2
+                            else:
+                                task = 1
+                        
+                        res_obj = pool.apply_async(
+                            per_stimuli_pair_train_and_eval_overtime, 
+                            args=[
+                                runs, stimulus1, stimulus2, 
+                                roi,
+                                root_path,
+                                glm_path,
+                                roi_path,
+                                sub, 
+                                task, 
+                                dataType, 
+                                smooth_beta,
+                                mapper
+                            ]
+                        )
+                        # res_obj.get() is a dict of (sub, pair) 
+                        # whose keys are the run ids.
+                        decoding_error[problem_type][sub].append(res_obj)
+            pool.close()
+            pool.join()
+
+        decoding_error_collector = defaultdict(lambda: defaultdict(list))
+        for problem_type in problem_types:
+            for sub in subs:
+                # all pairs of (type, sub)
+                per_type_results_obj = decoding_error[problem_type][sub]
+                # a list of dict (keys are run ids)
+                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
+                # iterate all dicts and gather val_acc by run_id
+                for per_pair_dict in per_type_results:
+                    for run_id in per_pair_dict.keys():
+                        val_acc = per_pair_dict[run_id]
+                        decoding_error_collector[problem_type][run_id].append(1-val_acc)
+        
+        # https://stackoverflow.com/questions/16439301/cant-pickle-defaultdict/16439531#16439531 
+        with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'wb') as f:
+            dill.dump(decoding_error_collector, f)
+    
+    else:
+        with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
+            decoding_error_collector = dill.load(f)
+    
+    for problem_type in problem_types:
+        for run in runs:
+            per_run = decoding_error_collector[problem_type][run]
+            print(f'Type{problem_type}, run{run}, 1-acc={np.mean(per_run):.3f}')
+         
+    # average_coef, t, p = decoding_error_regression(
+    #     decoding_error_collector,
+    #     num_subs=num_subs, 
+    #     problem_types=problem_types
+    # )
+
+
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
@@ -327,7 +505,15 @@ if __name__ == '__main__':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
 
-    decoding_accuracy_execute(
+    # TODO: convert acc to error
+    # decoding_accuracy_execute(
+    #     roi=roi, conditions=conditions, 
+    #     num_repetitions_per_run=num_repetitions_per_run,
+    #     num_runs=len(runs),
+    #     num_processes=72
+    # )
+    
+    decoding_error_overtime_execute(
         roi=roi, conditions=conditions, 
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
