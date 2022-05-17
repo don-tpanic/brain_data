@@ -447,8 +447,7 @@ def decoding_error_overtime_execute(
                                 mapper
                             ]
                         )
-                        # res_obj.get() is a dict of (sub, pair) 
-                        # whose keys are the run ids.
+                        # per (type, subject, pair) of all runs
                         decoding_error[problem_type][sub].append(res_obj)
             pool.close()
             pool.join()
@@ -456,12 +455,11 @@ def decoding_error_overtime_execute(
         decoding_error_collector = defaultdict(lambda: defaultdict(list))
         for problem_type in problem_types:
             for sub in subs:
-                # all pairs of (type, sub)
+                # per (type, subject, pair) of all runs
                 per_type_results_obj = decoding_error[problem_type][sub]
-                # a list of dict (keys are run ids)
-                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
-                                
-                # iterate all dicts and gather val_acc by run_id
+                # a list of dictionaries where each dict is all runs
+                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]         
+                # iterate all dicts and gather val_acc per run_id
                 temp = defaultdict(list)
                 for per_pair_dict in per_type_results:
                     for run_id in per_pair_dict.keys():
@@ -469,7 +467,6 @@ def decoding_error_overtime_execute(
                         # collect all pairs by run_id and average over pairs
                         # so that for each (sub, run_id) there is one value
                         temp[run_id].append(1-val_acc)
-                
                 # re-go over runs to compute average over pairs of a (sub, run_id)
                 for run_id in runs:
                     decoding_error_collector[problem_type][run_id].append(np.mean(temp[run_id]))
@@ -482,26 +479,27 @@ def decoding_error_overtime_execute(
         with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
             decoding_error_collector = dill.load(f)
     
-    visualize_decoding_error_overtime(results_path, num_runs)
+    visualize_decoding_error_overtime(decoding_error_collector, num_runs)
 
 
-def visualize_decoding_error_overtime(results_path, num_runs):
+def visualize_decoding_error_overtime(decoding_error_collector, num_runs):
     fig, ax = plt.subplots()
-    with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
-        decoding_error_collector = dill.load(f)
-    
     x = []    # each sub's run
     y = []    # each sub problem_type's decoding error
     hue = []  # each sub problem_type
     for problem_type in problem_types:
         for run in runs:
             per_run_metrics = decoding_error_collector[problem_type][run]
-            x.extend(f'[{run}]' * num_subs)
+            # x.extend([f'{run}'] * num_subs)
+            # y.extend(per_run_metrics)
+            # hue.extend([f'Type {problem_type}'] * num_subs)
+            x.extend([f'Type {problem_type}'] * num_subs)
             y.extend(per_run_metrics)
-            hue.extend([f'Type {problem_type}'] * num_subs)
-    
-    palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
-    ax = sns.stripplot(x=x, y=y, hue=hue, palette=palette, dodge=True, alpha=0.8, jitter=0.3, size=4)
+            hue.extend([f'run {run}'] * num_subs)
+            
+    # palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
+    palette = {'run 2': 'pink', 'run 3': 'green', 'run 4': 'blue'}
+    ax = sns.violinplot(x=x, y=y, hue=hue, palette=palette)
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
     plt.tight_layout()
