@@ -332,6 +332,15 @@ def per_stimuli_pair_train_and_eval_overtime(
         We store per fold (i.e. run) results using 
         a dictionary whose keys are the run ids and 
         values are the decoding accuracies.
+    
+    return:
+    -------
+        e.g. 
+            test_score={
+                run2: val_acc,
+                run3: val_acc,
+                ...
+            }
     """
     X = []
     Y = []
@@ -395,7 +404,7 @@ def decoding_error_overtime_execute(
     ):
     """
     overtime meaning that we collect decoding errors 
-    split by runs.
+    split by runs and do not average over runs.
     """
     results_path = 'decoding_results_overtime'
     if not os.path.exists(results_path):
@@ -448,6 +457,9 @@ def decoding_error_overtime_execute(
                             ]
                         )
                         # per (type, subject, pair) of all runs
+                        # ...[sub] = [a list of dictionaries] where 
+                        # there are 28 dictionaries each is a pair of stimuli,
+                        # and each dictionary is of all runs' val_acc.
                         decoding_error[problem_type][sub].append(res_obj)
             pool.close()
             pool.join()
@@ -457,9 +469,13 @@ def decoding_error_overtime_execute(
             for sub in subs:
                 # per (type, subject, pair) of all runs
                 per_type_results_obj = decoding_error[problem_type][sub]
-                # a list of dictionaries where each dict is all runs
+                # a list of dictionaries where each dict is all runs' val_acc
                 per_type_results = [res_obj.get() for res_obj in per_type_results_obj]         
                 # iterate all dicts and gather val_acc per run_id
+                
+                # the temporary dictionary will store all pairs' val_acc
+                # grouped by run. So we can expect each key corresponds 
+                # to a list of 28 pairs' val_acc for that run.
                 temp = defaultdict(list)
                 for per_pair_dict in per_type_results:
                     for run_id in per_pair_dict.keys():
@@ -467,8 +483,12 @@ def decoding_error_overtime_execute(
                         # collect all pairs by run_id and average over pairs
                         # so that for each (sub, run_id) there is one value
                         temp[run_id].append(1-val_acc)
-                # re-go over runs to compute average over pairs of a (sub, run_id)
+                        
+                # since we want evetually each subject has 1 single value for each run,
+                # here we need to go over the runs of temp and compute the average 
+                # over pairs of every run.
                 for run_id in runs:
+                    assert len(temp[run_id]) == len(list(itertools.combinations(stimuli, r=2)))
                     decoding_error_collector[problem_type][run_id].append(np.mean(temp[run_id]))
                                               
         # https://stackoverflow.com/questions/16439301/cant-pickle-defaultdict/16439531#16439531 
@@ -484,21 +504,21 @@ def decoding_error_overtime_execute(
 
 def visualize_decoding_error_overtime(decoding_error_collector, num_runs):
     fig, ax = plt.subplots()
-    x = []    # each sub's run
+    x = []    # each sub's problem_type
     y = []    # each sub problem_type's decoding error
-    hue = []  # each sub problem_type
+    hue = []  # each sub run
     for problem_type in problem_types:
         for run in runs:
             per_run_metrics = decoding_error_collector[problem_type][run]
-            # x.extend([f'{run}'] * num_subs)
-            # y.extend(per_run_metrics)
-            # hue.extend([f'Type {problem_type}'] * num_subs)
             x.extend([f'Type {problem_type}'] * num_subs)
             y.extend(per_run_metrics)
             hue.extend([f'run {run}'] * num_subs)
-            
-    # palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
-    palette = {'run 2': 'pink', 'run 3': 'green', 'run 4': 'blue'}
+    
+    if num_runs == 3:
+        palette = {'run 2': 'pink', 'run 3': 'green', 'run 4': 'blue'}
+    elif num_runs == 4:
+        palette = {'run 1': 'red', 'run 2': 'pink', 'run 3': 'green', 'run 4': 'blue'}
+        
     ax = sns.violinplot(x=x, y=y, hue=hue, palette=palette)
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
