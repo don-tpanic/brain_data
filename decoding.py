@@ -396,7 +396,7 @@ def per_stimuli_pair_train_and_eval_overtime(
 
 
 def decoding_error_overtime_execute(
-        roi, 
+        rois, 
         conditions, 
         num_repetitions_per_run, 
         num_runs,
@@ -410,99 +410,100 @@ def decoding_error_overtime_execute(
     if not os.path.exists(results_path):
         os.mkdir(results_path)
     
-    if not os.path.exists(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl'):
+    for roi in rois:
         if 'HPC' not in roi:
             roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         else:
             roi_path = 'ROIs/HPC'
             
-        mapper = stimuli2conditions(
-            conditions=conditions, 
-            num_repetitions_per_run=num_repetitions_per_run
-        )
-        
-        with multiprocessing.Pool(num_processes) as pool:
-            decoding_error = defaultdict(lambda: defaultdict(list))
+        if not os.path.exists(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl'):
+            mapper = stimuli2conditions(
+                conditions=conditions, 
+                num_repetitions_per_run=num_repetitions_per_run
+            )
+            
+            with multiprocessing.Pool(num_processes) as pool:    
+                decoding_error = defaultdict(lambda: defaultdict(list))
+                for problem_type in problem_types:
+                    for sub in subs:
+                        for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
+                            if int(sub) % 2 == 0:
+                                if problem_type == 1:
+                                    task = 2
+                                elif problem_type == 2:
+                                    task = 3
+                                else:
+                                    task = 1
+                            else:
+                                if problem_type == 1:
+                                    task = 3
+                                elif problem_type == 2:
+                                    task = 2
+                                else:
+                                    task = 1
+                            
+                            res_obj = pool.apply_async(
+                                per_stimuli_pair_train_and_eval_overtime, 
+                                args=[
+                                    runs, stimulus1, stimulus2, 
+                                    roi,
+                                    root_path,
+                                    glm_path,
+                                    roi_path,
+                                    sub, 
+                                    task, 
+                                    dataType, 
+                                    smooth_beta,
+                                    mapper
+                                ]
+                            )
+                            # per (type, subject, pair) of all runs
+                            # ...[sub] = [a list of dictionaries] where 
+                            # there are 28 dictionaries each is a pair of stimuli,
+                            # and each dictionary is of all runs' val_acc.
+                            decoding_error[problem_type][sub].append(res_obj)
+                pool.close()
+                pool.join()
+
+            decoding_error_collector = defaultdict(lambda: defaultdict(list))
             for problem_type in problem_types:
                 for sub in subs:
-                    for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
-                        if int(sub) % 2 == 0:
-                            if problem_type == 1:
-                                task = 2
-                            elif problem_type == 2:
-                                task = 3
-                            else:
-                                task = 1
-                        else:
-                            if problem_type == 1:
-                                task = 3
-                            elif problem_type == 2:
-                                task = 2
-                            else:
-                                task = 1
-                        
-                        res_obj = pool.apply_async(
-                            per_stimuli_pair_train_and_eval_overtime, 
-                            args=[
-                                runs, stimulus1, stimulus2, 
-                                roi,
-                                root_path,
-                                glm_path,
-                                roi_path,
-                                sub, 
-                                task, 
-                                dataType, 
-                                smooth_beta,
-                                mapper
-                            ]
-                        )
-                        # per (type, subject, pair) of all runs
-                        # ...[sub] = [a list of dictionaries] where 
-                        # there are 28 dictionaries each is a pair of stimuli,
-                        # and each dictionary is of all runs' val_acc.
-                        decoding_error[problem_type][sub].append(res_obj)
-            pool.close()
-            pool.join()
-
-        decoding_error_collector = defaultdict(lambda: defaultdict(list))
-        for problem_type in problem_types:
-            for sub in subs:
-                # per (type, subject, pair) of all runs
-                per_type_results_obj = decoding_error[problem_type][sub]
-                # a list of dictionaries where each dict is all runs' val_acc
-                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]         
-                # iterate all dicts and gather val_acc per run_id
-                
-                # the temporary dictionary will store all pairs' val_acc
-                # grouped by run. So we can expect each key corresponds 
-                # to a list of 28 pairs' val_acc for that run.
-                temp = defaultdict(list)
-                for per_pair_dict in per_type_results:
-                    for run_id in per_pair_dict.keys():
-                        val_acc = per_pair_dict[run_id]
-                        # collect all pairs by run_id and average over pairs
-                        # so that for each (sub, run_id) there is one value
-                        temp[run_id].append(1-val_acc)
-                        
-                # since we want evetually each subject has 1 single value for each run,
-                # here we need to go over the runs of temp and compute the average 
-                # over pairs of every run.
-                for run_id in runs:
-                    assert len(temp[run_id]) == len(list(itertools.combinations(stimuli, r=2)))
-                    decoding_error_collector[problem_type][run_id].append(np.mean(temp[run_id]))
-                                              
-        # https://stackoverflow.com/questions/16439301/cant-pickle-defaultdict/16439531#16439531 
-        with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'wb') as f:
-            dill.dump(decoding_error_collector, f)
-    
-    else:
-        with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
-            decoding_error_collector = dill.load(f)
-    
-    visualize_decoding_error_overtime(decoding_error_collector, num_runs)
+                    # per (type, subject, pair) of all runs
+                    per_type_results_obj = decoding_error[problem_type][sub]
+                    # a list of dictionaries where each dict is all runs' val_acc
+                    per_type_results = [res_obj.get() for res_obj in per_type_results_obj]         
+                    # iterate all dicts and gather val_acc per run_id
+                    
+                    # the temporary dictionary will store all pairs' val_acc
+                    # grouped by run. So we can expect each key corresponds 
+                    # to a list of 28 pairs' val_acc for that run.
+                    temp = defaultdict(list)
+                    for per_pair_dict in per_type_results:
+                        for run_id in per_pair_dict.keys():
+                            val_acc = per_pair_dict[run_id]
+                            # collect all pairs by run_id and average over pairs
+                            # so that for each (sub, run_id) there is one value
+                            temp[run_id].append(1-val_acc)
+                            
+                    # since we want evetually each subject has 1 single value for each run,
+                    # here we need to go over the runs of temp and compute the average 
+                    # over pairs of every run.
+                    for run_id in runs:
+                        assert len(temp[run_id]) == len(list(itertools.combinations(stimuli, r=2)))
+                        decoding_error_collector[problem_type][run_id].append(np.mean(temp[run_id]))
+                                                
+            # https://stackoverflow.com/questions/16439301/cant-pickle-defaultdict/16439531#16439531 
+            with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'wb') as f:
+                dill.dump(decoding_error_collector, f)
+        
+        else:
+            with open(f'{results_path}/decoding_error_{num_runs}runs_{roi}.pkl', 'rb') as f:
+                decoding_error_collector = dill.load(f)
+        
+        visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi)
 
 
-def visualize_decoding_error_overtime(decoding_error_collector, num_runs):
+def visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi):
     fig, ax = plt.subplots()
     x = []    # each sub's problem_type
     y = []    # each sub problem_type's decoding error
@@ -529,7 +530,7 @@ def visualize_decoding_error_overtime(decoding_error_collector, num_runs):
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    roi = 'LOC'
+    rois = ['LOC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
@@ -554,7 +555,7 @@ if __name__ == '__main__':
     # )
     
     decoding_error_overtime_execute(
-        roi=roi, conditions=conditions, 
+        rois=rois, conditions=conditions, 
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
         num_processes=72
