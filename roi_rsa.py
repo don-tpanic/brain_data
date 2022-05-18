@@ -520,20 +520,26 @@ def correlate_against_ideal_RDM_regression(rois, distance, problem_type, method,
                 all_rho[r, s] = rho
         
         # fit linear regression models for each
-        # subject and obtain coefficient.
+        # subject and obtain coefficient
+        all_coefs = []
         for s in range(num_subs):
             X_sub = [1, 2, 3, 4]
             y_sub = all_rho[:, s]
             coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
             print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
-        print(np.mean(all_rho, axis=1))
+            all_coefs.append(coef[-1])
+        
+        average_coef = np.mean(all_coefs)
+        print(f'average_coef={average_coef:.3f}')
+        t, p = stats.ttest_1samp(all_coefs, popmean=0)
+        print(f't={t:.3f}, one-tailed p={p/2:.3f}')
        
        
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_run-estimate'
     rdm_path = 'subject_RDMs'
-    rois = ['LOC']
+    rois = ['RHHPC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 16  # exc. bias term (8 + 8_fb)
@@ -563,29 +569,29 @@ if __name__ == '__main__':
     #     num_processes=70
     # )
     
-    # correlate_against_ideal_RDM(
-    #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=1,
-    #     seed=999, 
-    #     num_shuffles=200,
-    #     method='spearman',
-    #     dataType='beta'
-    # )    
-    
-    # correlate_against_ideal_RDM_regression(
-    #     rois=rois, 
-    #     distance='pearson',
-    #     problem_type=1,
-    #     method='spearman',
-    #     dataType='beta'
-    # )    
-    
-    visualize_RDM(
-        sub='08', 
-        problem_type=1, 
-        distance='pearson', 
-        run=4, 
-        roi='LOC', 
+    correlate_against_ideal_RDM(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        seed=999, 
+        num_shuffles=1,
+        method='spearman',
         dataType='beta'
-    )
+    )    
+    
+    correlate_against_ideal_RDM_regression(
+        rois=rois, 
+        distance='pearson',
+        problem_type=1,
+        method='spearman',
+        dataType='beta'
+    )    
+    
+    # visualize_RDM(
+    #     sub='08', 
+    #     problem_type=1, 
+    #     distance='pearson', 
+    #     run=4, 
+    #     roi='LOC', 
+    #     dataType='beta'
+    # )
