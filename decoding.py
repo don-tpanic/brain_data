@@ -353,9 +353,8 @@ def paired_ttest_between_rois(roi1, roi2, num_runs):
         problem_types=problem_types
     )
     
-    print(f'{roi1} vs {roi2} ',
-        stats.ttest_rel(all_coefs_roi1, all_coefs_roi2)
-    )
+    t, p = stats.ttest_rel(all_coefs_roi1, all_coefs_roi2)
+    print(f'{roi1} vs {roi2} t={t:.3f}, one-tailed p={p/2:.3f}')
     
      
 ##### overtime analysis ####
@@ -611,7 +610,7 @@ if __name__ == '__main__':
     
     paired_ttest_between_rois(
         roi1='LOC',
-        roi2='RHHPC',
+        roi2='LHHPC',
         num_runs=len(runs)
     )
     
