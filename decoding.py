@@ -237,24 +237,41 @@ def decoding_error_execute(
                 f'{results_path}/decoding_error_{num_runs}runs_{roi}.npy', 
                 allow_pickle=True).ravel()[0]
         
-        print(
-            f'Type 1 err={np.mean(decoding_error_collector[1]):.3f}, '\
-            f'sem={stats.sem(decoding_error_collector[1]):.3f}'
-        )
-        print(
-            f'Type 2 err={np.mean(decoding_error_collector[2]):.3f}, '\
-            f'sem={stats.sem(decoding_error_collector[2]):.3f}'
-        )
-        print(
-            f'Type 6 err={np.mean(decoding_error_collector[6]):.3f}, '\
-            f'sem={stats.sem(decoding_error_collector[6]):.3f}'
-        )
+        # plotting
+        visualize_decoding_error(decoding_error_collector, num_runs, roi)
         
+        # print key stats
+        for problem_type in problem_types:
+            print(
+                f'ROI={roi}, Type={problem_type}, '\
+                f'err={np.mean(decoding_error_collector[problem_type]):.3f}, '\
+                f'sem={stats.sem(decoding_error_collector[problem_type]):.3f}'
+            )
+        
+        # stats significance fitting linear regression
         average_coef, t, p = decoding_error_regression(
             decoding_error_collector,
             num_subs=num_subs, 
             problem_types=problem_types
         )
+        print(f'-'*37)
+
+
+def visualize_decoding_error(decoding_error_collector, num_runs, roi):
+    fig, ax = plt.subplots()
+    x = []    # each sub's problem_type
+    y = []    # each sub problem_type's decoding error
+    for problem_type in problem_types:
+        per_run_metrics = decoding_error_collector[problem_type]
+        x.extend([f'Type {problem_type}'] * num_subs)
+        y.extend(per_run_metrics)
+    
+    palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
+    ax = sns.violinplot(x=x, y=y, palette=palette)
+    ax.set_xlabel('Problem Type')
+    ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
+    plt.tight_layout()
+    plt.savefig(f'decoding_results/decoding_error_{num_runs}runs_{roi}.png')
 
 
 def decoding_error_regression(
