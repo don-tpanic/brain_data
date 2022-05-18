@@ -146,8 +146,8 @@ def per_stimuli_pair_train_and_eval(
     return val_acc
 
 
-def decoding_accuracy_execute(
-        roi, 
+def decoding_error_execute(
+        rois, 
         conditions, 
         num_repetitions_per_run, 
         num_runs,
@@ -156,106 +156,105 @@ def decoding_accuracy_execute(
     """
     1. Given each problem type and subject, we iterate pairs of stimuli,
     for each stimuli pair, we group all repetitions （of all runs)
-    of the same stimulus as from one class. 
+    of the same stimulus as from one class.
     2. For each stimuli pair, we train a classifier with 
         cross-validation and return a single accuracy for that pair. 
-    3. We finally return all accuracies for each problem type.
+    3. We finally return all 1-accuracies for each problem type.
     """
     results_path = 'decoding_results'
     if not os.path.exists(results_path):
         os.mkdir(results_path)
     
-    if not os.path.exists(f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy'):
+    for roi in rois:
         if 'HPC' not in roi:
             roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
         else:
             roi_path = 'ROIs/HPC'
             
-        mapper = stimuli2conditions(
-            conditions=conditions, 
-            num_repetitions_per_run=num_repetitions_per_run
-        )
+        if not os.path.exists(f'{results_path}/decoding_error_{num_runs}runs_{roi}.npy'):
+            if 'HPC' not in roi:
+                roi_path = 'ROIs/ProbAtlas_v4/subj_vol_all'
+            else:
+                roi_path = 'ROIs/HPC'
+                
+            mapper = stimuli2conditions(
+                conditions=conditions, 
+                num_repetitions_per_run=num_repetitions_per_run
+            )
+            
+            with multiprocessing.Pool(num_processes) as pool:
+                decoding_error = defaultdict(lambda: defaultdict(list))
+                for problem_type in problem_types:
+                    for sub in subs:
+                        for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
+                            if int(sub) % 2 == 0:
+                                if problem_type == 1:
+                                    task = 2
+                                elif problem_type == 2:
+                                    task = 3
+                                else:
+                                    task = 1
+                            else:
+                                if problem_type == 1:
+                                    task = 3
+                                elif problem_type == 2:
+                                    task = 2
+                                else:
+                                    task = 1
+                            
+                            res_obj = pool.apply_async(
+                                per_stimuli_pair_train_and_eval, 
+                                args=[
+                                    runs, stimulus1, stimulus2, 
+                                    roi,
+                                    root_path,
+                                    glm_path,
+                                    roi_path,
+                                    sub, 
+                                    task, 
+                                    dataType, 
+                                    smooth_beta,
+                                    mapper
+                                ]
+                            )
+                            # res_obj.get() is val_acc of (sub, pair)
+                            decoding_error[problem_type][sub].append(res_obj)
+                pool.close()
+                pool.join()
         
-        with multiprocessing.Pool(num_processes) as pool:
-            decoding_accuracy = defaultdict(lambda: defaultdict(list))
+            decoding_error_collector = defaultdict(list)
             for problem_type in problem_types:
                 for sub in subs:
-                    for stimulus1, stimulus2 in itertools.combinations(stimuli, r=2):  
-                        if int(sub) % 2 == 0:
-                            if problem_type == 1:
-                                task = 2
-                            elif problem_type == 2:
-                                task = 3
-                            else:
-                                task = 1
-                        else:
-                            if problem_type == 1:
-                                task = 3
-                            elif problem_type == 2:
-                                task = 2
-                            else:
-                                task = 1
-                        
-                        res_obj = pool.apply_async(
-                            per_stimuli_pair_train_and_eval, 
-                            args=[
-                                runs, stimulus1, stimulus2, 
-                                roi,
-                                root_path,
-                                glm_path,
-                                roi_path,
-                                sub, 
-                                task, 
-                                dataType, 
-                                smooth_beta,
-                                mapper
-                            ]
-                        )
-                        # res_obj.get() is val_acc of (sub, pair)
-                        decoding_accuracy[problem_type][sub].append(res_obj)
-            pool.close()
-            pool.join()
-    
-        decoding_accuracy_collector = defaultdict(list)
-        for problem_type in problem_types:
-            for sub in subs:
-                # all pairs of (type, sub)
-                per_type_results_obj = decoding_accuracy[problem_type][sub]
-                per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
-                # only need average of all pairs
-                decoding_accuracy_collector[problem_type].append(np.mean(per_type_results))
-        np.save(f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', decoding_accuracy_collector)
-    
-    else:
-        decoding_accuracy_collector = np.load(
-            f'{results_path}/decoding_accuracy_{num_runs}runs_{roi}.npy', 
-            allow_pickle=True).ravel()[0]
-    
-    
-    # convert accuracy to error to be consistent 
-    # with recon loss in model
-    decoding_error_collector = defaultdict(list)
-    for problem_type in problem_types:
-        decoding_error_collector[problem_type] = 1-np.array(decoding_accuracy_collector[problem_type])
-    
-    print(
-        f'Type 1 err={np.mean(decoding_error_collector[1]):.3f}, '\
-        f'sem={stats.sem(decoding_error_collector[1]):.3f}'
-    )
-    print(
-        f'Type 2 err={np.mean(decoding_error_collector[2]):.3f}, '\
-        f'sem={stats.sem(decoding_error_collector[2]):.3f}'
-    )
-    print(
-        f'Type 6 err={np.mean(decoding_error_collector[6]):.3f}, '\
-        f'sem={stats.sem(decoding_error_collector[6]):.3f}'
-    )
-    
-    average_coef, t, p = decoding_error_regression(
-        decoding_error_collector,
-        num_subs=num_subs, 
-        problem_types=problem_types
-    )
+                    # all pairs of (type, sub)
+                    per_type_results_obj = decoding_error[problem_type][sub]
+                    per_type_results = [res_obj.get() for res_obj in per_type_results_obj]
+                    # only need average over pairs and convert to 1-acc
+                    decoding_error_collector[problem_type].append(1-np.mean(per_type_results))
+            np.save(f'{results_path}/decoding_error_{num_runs}runs_{roi}.npy', decoding_error_collector)
+        
+        else:
+            decoding_error_collector = np.load(
+                f'{results_path}/decoding_error_{num_runs}runs_{roi}.npy', 
+                allow_pickle=True).ravel()[0]
+        
+        print(
+            f'Type 1 err={np.mean(decoding_error_collector[1]):.3f}, '\
+            f'sem={stats.sem(decoding_error_collector[1]):.3f}'
+        )
+        print(
+            f'Type 2 err={np.mean(decoding_error_collector[2]):.3f}, '\
+            f'sem={stats.sem(decoding_error_collector[2]):.3f}'
+        )
+        print(
+            f'Type 6 err={np.mean(decoding_error_collector[6]):.3f}, '\
+            f'sem={stats.sem(decoding_error_collector[6]):.3f}'
+        )
+        
+        average_coef, t, p = decoding_error_regression(
+            decoding_error_collector,
+            num_subs=num_subs, 
+            problem_types=problem_types
+        )
 
 
 def decoding_error_regression(
@@ -264,17 +263,17 @@ def decoding_error_regression(
         problem_types
     ):
     """Fitting linear regression models to per subject decoding 
-    accuracies over problem_types. This way, we can read off the 
-    regression coefficient on whether there is an up trend of 
-    decoding accuracies as task difficulty increases in order to 
+    1-accuracies over problem_types. This way, we can read off the 
+    regression coefficient on whether there is a down trend of 
+    decoding 1-accuracies as task difficulty increases in order to 
     test statistic significance of our finding that the harder 
     the problem, the better the decoding (hence lower recon loss).
     
     Impl:
     -----
-        `decoding_accuracy_collector` are saved in format:
+        `decoding_error_collector` are saved in format:
             {
-             'Type1': [sub02_acc, sub03_acc, ..],
+             'Type1': [sub02_err, sub03_err, ..],
              'Type2}: ...
             }
         
@@ -288,7 +287,7 @@ def decoding_error_regression(
     group_results_by_subject = np.ones((num_subs, len(problem_types)))
     for z in range(len(problem_types)):
         problem_type = problem_types[z]
-        # [sub02_acc, sub03_acc, ...]
+        # [sub02_err, sub03_err, ...]
         per_type_all_subjects = decoding_error_collector[problem_type]
         for s in range(num_subs):
             group_results_by_subject[s, z] = per_type_all_subjects[s]
@@ -296,7 +295,7 @@ def decoding_error_regression(
     all_coefs = []
     for s in range(num_subs):
         X_sub = problem_types
-        # [sub02_type1_acc, sub02_type2_acc, ...]
+        # [sub02_type1_err, sub02_type2_err, ...]
         y_sub = group_results_by_subject[s, :]
         coef = pg.linear_regression(X=X_sub, y=y_sub, coef_only=True)
         # print(f'sub{subs[s]}, {y_sub}, coef={coef[-1]:.3f}')
@@ -543,7 +542,7 @@ if __name__ == '__main__':
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
-    runs = [1, 2, 3, 4]
+    runs = [2, 3, 4]
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
@@ -554,17 +553,16 @@ if __name__ == '__main__':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
 
-    # TODO: convert acc to error
-    # decoding_accuracy_execute(
-    #     roi=roi, conditions=conditions, 
-    #     num_repetitions_per_run=num_repetitions_per_run,
-    #     num_runs=len(runs),
-    #     num_processes=72
-    # )
-    
-    decoding_error_overtime_execute(
+    decoding_error_execute(
         rois=rois, conditions=conditions, 
         num_repetitions_per_run=num_repetitions_per_run,
         num_runs=len(runs),
         num_processes=72
-    )    
+    )
+    
+    # decoding_error_overtime_execute(
+    #     rois=rois, conditions=conditions, 
+    #     num_repetitions_per_run=num_repetitions_per_run,
+    #     num_runs=len(runs),
+    #     num_processes=72
+    # )    
