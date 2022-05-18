@@ -249,7 +249,7 @@ def decoding_error_execute(
             )
         
         # stats significance fitting linear regression
-        average_coef, t, p = decoding_error_regression(
+        average_coef, t, p, _ = decoding_error_regression(
             decoding_error_collector,
             num_subs=num_subs, 
             problem_types=problem_types
@@ -322,10 +322,42 @@ def decoding_error_regression(
     print(f'average_coef={average_coef:.3f}')
     t, p = stats.ttest_1samp(all_coefs, popmean=0)
     print(f't={t:.3f}, one-tailed p={p/2:.3f}')
-    return average_coef, t, p/2
+    return average_coef, t, p/2, all_coefs
         
-        
-        
+
+def paired_ttest_between_rois(roi1, roi2, num_runs):
+    """An extra significance testing by pair ttesting
+    the linear regression coefficients of two different
+    ROIs. The purpose is to see whether LOC is significantly
+    different from HPC in terms of decoding pattern across
+    problem types.
+    """
+    results_path = 'decoding_results'
+    decoding_error_collector_roi1 = np.load(
+        f'{results_path}/decoding_error_{num_runs}runs_{roi1}.npy', 
+        allow_pickle=True).ravel()[0]
+
+    decoding_error_collector_roi2 = np.load(
+        f'{results_path}/decoding_error_{num_runs}runs_{roi2}.npy', 
+        allow_pickle=True).ravel()[0]
+    
+    _, _, _, all_coefs_roi1 = decoding_error_regression(
+        decoding_error_collector=decoding_error_collector_roi1, 
+        num_subs=num_subs, 
+        problem_types=problem_types
+    )
+    
+    _, _, _, all_coefs_roi2 = decoding_error_regression(
+        decoding_error_collector=decoding_error_collector_roi2, 
+        num_subs=num_subs, 
+        problem_types=problem_types
+    )
+    
+    print(f'{roi1} vs {roi2} ',
+        stats.ttest_rel(all_coefs_roi1, all_coefs_roi2)
+    )
+    
+     
 ##### overtime analysis ####
 def per_stimuli_pair_train_and_eval_overtime(
         runs, stimulus1, stimulus2, 
@@ -570,11 +602,17 @@ if __name__ == '__main__':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
 
-    decoding_error_execute(
-        rois=rois, conditions=conditions, 
-        num_repetitions_per_run=num_repetitions_per_run,
-        num_runs=len(runs),
-        num_processes=72
+    # decoding_error_execute(
+    #     rois=rois, conditions=conditions, 
+    #     num_repetitions_per_run=num_repetitions_per_run,
+    #     num_runs=len(runs),
+    #     num_processes=72
+    # )
+    
+    paired_ttest_between_rois(
+        roi1='LOC',
+        roi2='RHHPC',
+        num_runs=len(runs)
     )
     
     # decoding_error_overtime_execute(
