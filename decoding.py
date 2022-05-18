@@ -501,6 +501,14 @@ def decoding_error_overtime_execute(
                 decoding_error_collector = dill.load(f)
         
         visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi)
+        
+        for problem_type in problem_types:
+            for run in runs:
+                print(
+                    f'ROI {roi}, Type {problem_type}, run {run}, err={np.mean(decoding_error_collector[problem_type][run]):.3f}, '\
+                    f'sem={stats.sem(decoding_error_collector[problem_type][run]):.3f}'
+                )
+            print('\n\n')
 
 
 def visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi):
@@ -530,12 +538,12 @@ def visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi):
 if __name__ == '__main__':
     root_path = '/home/ken/projects/brain_data'
     glm_path = 'glm_trial-estimate'
-    rois = ['LOC']
+    rois = ['LHHPC', 'RHHPC', 'LOC']
     num_subs = 23
     dataType = 'beta'
     num_conditions = 64  # exc. bias term (8*4rp + 8_fb*4rp)
     problem_types = [1, 2, 6]
-    runs = [2, 3, 4]
+    runs = [1, 2, 3, 4]
     smooth_beta = 2
     subs = [f'{i:02d}' for i in range(2, num_subs+2) if i!=9]
     num_subs = len(subs)
