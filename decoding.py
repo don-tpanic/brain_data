@@ -267,7 +267,7 @@ def visualize_decoding_error(decoding_error_collector, num_runs, roi):
         y.extend(per_run_metrics)
     
     palette = {'Type 1': 'pink', 'Type 2': 'green', 'Type 6': 'blue'}
-    ax = sns.violinplot(x=x, y=y, palette=palette)
+    ax = sns.boxplot(x=x, y=y, palette=palette)
     ax.set_xlabel('Problem Type')
     ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
     plt.tight_layout()
@@ -575,7 +575,7 @@ def visualize_decoding_error_overtime(decoding_error_collector, num_runs, roi):
     elif num_runs == 4:
         palette = {'run 1': 'red', 'run 2': 'pink', 'run 3': 'green', 'run 4': 'blue'}
         
-    ax = sns.violinplot(x=x, y=y, hue=hue, palette=palette)
+    ax = sns.boxplot(x=x, y=y, hue=hue, palette=palette)
     ax.set_xlabel('Learning Blocks')
     ax.set_ylabel(f'{roi} Neural Stimulus Reconstruction Loss\n(1 - decoding accuracy)')
     plt.tight_layout()
@@ -601,18 +601,18 @@ if __name__ == '__main__':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
 
-    # decoding_error_execute(
-    #     rois=rois, conditions=conditions, 
-    #     num_repetitions_per_run=num_repetitions_per_run,
-    #     num_runs=len(runs),
-    #     num_processes=72
-    # )
-    
-    paired_ttest_between_rois(
-        roi1='LOC',
-        roi2='LHHPC',
-        num_runs=len(runs)
+    decoding_error_execute(
+        rois=rois, conditions=conditions, 
+        num_repetitions_per_run=num_repetitions_per_run,
+        num_runs=len(runs),
+        num_processes=72
     )
+    
+    # paired_ttest_between_rois(
+    #     roi1='LOC',
+    #     roi2='LHHPC',
+    #     num_runs=len(runs)
+    # )
     
     # decoding_error_overtime_execute(
     #     rois=rois, conditions=conditions, 
