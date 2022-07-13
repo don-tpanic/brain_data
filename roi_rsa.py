@@ -370,48 +370,45 @@ def roi_execute(
                                     
         pool.close()
         pool.join()
-                                                        
+                                                    
 
-def visualize_RDM(subs, roi, problem_type, distance):
+def visualize_RDM(sub, problem_type, distance, run, repetition, roi):
     """
-    Visualize RSM instead of RDM due to that's what was done in
-    Mack et al.
-    
-    Will average over later runs like Mack et al.
+    Visualize subject's RDM given a problem_type
     """
-    runs = [3, 4]
-    RDM_sum = np.zeros((8, 8))
-    for sub in subs:
-        for run in runs:
-            # even sub: Type1 is task2
-            if int(sub) % 2 == 0:
-                if problem_type == 1:
-                    task = 2
-            # odd sub: Type1 is task3
-            else:
-                if problem_type == 1:
-                    task = 3
-                    
-            RDM = np.load(
-                f'{rdm_path}/sub-{sub}_task-{task}_run-{run}_roi-{roi}_{distance}.npy'
-            )
-            RDM_sum += RDM
-    
-    RDM_avg = RDM_sum / (len(subs) * len(runs))
+    if int(sub) % 2 == 0:
+        if problem_type == 1:
+            task = 2
+        elif problem_type == 2:
+            task = 3
+        else:
+            task = 1
+            
+    # odd sub: Type1 is task3, Type2 is task2
+    else:
+        if problem_type == 1:
+            task = 3
+        elif problem_type == 2:
+            task = 2
+        else:
+            task = 1
+
+    RDM = np.load(
+        f'subject_RDMs/sub-{sub}_task-{task}_run-{run}_rp-{repetition}_roi-{roi}_{distance}_beta.npy'
+    )
     
     fig, ax = plt.subplots()
-    for i in range(RDM_avg.shape[0]):
-        for j in range(RDM_avg.shape[0]):
+    for i in range(RDM.shape[0]):
+        for j in range(RDM.shape[0]):
             text = ax.text(
-                j, i, np.round(RDM_avg[i, j], 1),
+                j, i, np.round(RDM[i, j], 1),
                 ha="center", va="center", color="w"
             )
     
-    ax.set_title(f'distance: {distance}')
-    plt.imshow(RDM_avg)
-    plt.savefig(
-        f'RDMs/average_problem_type-{problem_type}_roi-{roi}_distance-{distance}.png'
-    )
+    ax.set_title(f'sub: {sub}, distance: {distance}, Type {problem_type}, roi: {roi}')
+    plt.imshow(RDM)
+    plt.savefig(f'subject_RDMs/sub-{sub}_task-{task}_run-{run}_rp-{repetition}_roi-{roi}_{distance}_beta.pdf')
+    plt.close()
     print(f'[Check] plotted.')
 
 
@@ -506,7 +503,7 @@ if __name__ == '__main__':
         conditions = [f'{i:04d}' for i in range(1, num_conditions, 2)]
         num_conditions = len(conditions)
                 
-    reorder_mapper = reorder_RDM_entries_into_chunks()
+    # reorder_mapper = reorder_RDM_entries_into_chunks()
     
     # roi_execute(
     #     rois=rois, 
@@ -521,13 +518,22 @@ if __name__ == '__main__':
     #     num_processes=70
     # )
     
-    correlate_against_ideal_RDM(
-        rois=rois, 
-        distance='pearson',
-        problem_type=1,
-        seed=999, 
-        num_shuffles=1,
-        method='spearman',
-        dataType='beta',
-        conditions=conditions
-    )    
+    # correlate_against_ideal_RDM(
+    #     rois=rois, 
+    #     distance='pearson',
+    #     problem_type=1,
+    #     seed=999, 
+    #     num_shuffles=1,
+    #     method='spearman',
+    #     dataType='beta',
+    #     conditions=conditions
+    # )    
+
+    visualize_RDM(
+        sub='08', 
+        problem_type=1, 
+        distance='pearson', 
+        run=4,
+        repetition=4, 
+        roi='LHHPC'
+    )
