@@ -50,6 +50,7 @@ docker run -it --rm -v /home/ken/projects/brain_data/:/home/ken/projects/brain_d
 ```
 
 ### Attribution
+```
 @article {Luo2023.01.16.524194,
     author = {Xiaoliang Luo and Robert M. Mok and Brett D. Roads and Bradley C. Love},
     title = {A controller-peripheral architecture and costly energy principle for learning},
@@ -58,3 +59,4 @@ docker run -it --rm -v /home/ken/projects/brain_data/:/home/ken/projects/brain_d
     doi = {10.1101/2023.01.16.524194},
     publisher = {Cold Spring Harbor Laboratory},
 }
+```
