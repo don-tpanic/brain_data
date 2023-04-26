@@ -11,9 +11,9 @@ This repo can be roughly divided into two parts: *fMRI data processing* and *fMR
 
 For fMRI data analysis,
 1. `roi_rsa.py` runs a similar representational similarity analysis in [Mack et al., 2016](https://www.pnas.org/doi/10.1073/pnas.1614048113)
-2. `pca.py` runs a similar analysis in Mack et al., 2020 (https://www.nature.com/articles/s41467-019-13930-8)
-3. `pca_3runs.py` runs a similar analysis in Ahlheim et al., 2018 (https://www.sciencedirect.com/science/article/pii/S1053811918305226)
-4. `decoding.py` runs a similar neural decoding analysis in Braunlich & Love, 2019 (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6586152/)
+2. `pca.py` runs a similar analysis in [Mack et al., 2020](https://www.nature.com/articles/s41467-019-13930-8)
+3. `pca_3runs.py` runs a similar analysis in [Ahlheim et al., 2018](https://www.sciencedirect.com/science/article/pii/S1053811918305226)
+4. `decoding.py` runs a similar neural decoding analysis in [Braunlich & Love, 2019](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6586152/)
 
 ### Environment setup
 1. Create a docker file using neurodocker
